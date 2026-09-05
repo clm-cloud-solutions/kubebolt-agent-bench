@@ -1,0 +1,323 @@
+{
+  "id": "8f3df89f-3536-46e7-925f-fdaaf23311f6",
+  "timestamp": "2026-09-03T01:39:35.541Z",
+  "model": {
+    "id": "openai/gpt-5.6-sol",
+    "label": "GPT-5.6 Sol",
+    "vendor": "OpenAI",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "runbook-trap-cache",
+  "scenarioTitle": "catalogo-api con 3 % de aciertos de caché: el runbook culpa a redis",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "catalogo-api-9d8c7b6a5-q1w2e",
+        "container": "",
+        "previous": false,
+        "tail": 500,
+        "grep": "redis|cache|error|timeout|miss|connect",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 3
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "redis-catalogo-0",
+        "container": "",
+        "previous": false,
+        "tail": 500,
+        "grep": "error|warning|oom|memory|evict|fragment|loading|maxmemory",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "statefulset",
+        "namespace": "catalogo",
+        "name": "redis-catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "object": ""
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_memory_working_set_bytes",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "kube_pod_container_status_restarts_total",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "catalogo",
+        "name": "catalogo-api-8c7b6a5f4"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "cache_hit_ratio",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_memory_used_bytes",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_mem_fragmentation_ratio",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_evicted_keys_total",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_commands_duration_seconds_p99",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_keys_total",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "pg_active_connections",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/catalogo/catalogo-api",
+          "summary": "La revisión 31 desplegó la plantilla de clave `cat:v4:{{request_id}}:producto:{{id}}`; incluir un `request_id` distinto en cada petición hace que las claves de producto no sean reutilizables y convierte casi todas las consultas en misses. Redis responde en 1 ms, no tiene evicciones y su fragmentación solo subió de 1.48 a 1.61, por lo que reiniciarlo no corregiría la causa; el aumento de carga en PostgreSQL es consecuencia de los misses.",
+          "evidence": [
+            "deployment/catalogo-api: `deployment.kubernetes.io/revision: 31`, imagen `acrclm.azurecr.io/catalogo/api:5.4.0`, `CACHE_KEY_TEMPLATE: cat:v4:{{request_id}}:producto:{{id}}`",
+            "replicaset/catalogo-api-8c7b6a5f4: `deployment.kubernetes.io/revision: 30`, imagen `acrclm.azurecr.io/catalogo/api:5.3.1`, `CACHE_KEY_TEMPLATE: cat:v3:producto:{{id}}`",
+            "Evento: `22m Normal ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3`",
+            "Log de catalogo-api: `INFO  GET /productos/3984 200 88ms cache=miss key=cat:v4:req-f298a4:producto:980 pg=487ms`",
+            "Log de catalogo-api: `DEBUG redis SET cat:v4:req-4eee6a:producto:997 ttl=600 ok 1ms`",
+            "Métrica cache_hit_ratio: `2026-09-02T02:50:00Z  0.91`, `2026-09-02T02:55:00Z  0.12`, `2026-09-02T03:14:00Z  0.03`",
+            "Métrica redis_keys_total: `2026-09-02T02:30:00Z  48210`, `2026-09-02T02:55:00Z  310442`, `2026-09-02T03:14:00Z  1846211`",
+            "Métricas Redis a las 03:14: `redis_commands_duration_seconds_p99 ... 0.001` y `redis_evicted_keys_total ... 0`",
+            "Métrica pg_active_connections: `2026-09-02T02:50:00Z  8`, `2026-09-02T03:14:00Z  38`"
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/catalogo/catalogo-api",
+            "params": {
+              "toRevision": 30
+            },
+            "reason": "Restaurar la revisión cuya clave estable `cat:v3:producto:{{id}}` permite reutilizar entradas. Es la intervención mínima; las claves v4 de alta cardinalidad tienen TTL de 600 s y expirarán solas, sin reiniciar Redis."
+          }
+        ],
+        "confidence": 0.99
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 4,
+  "submission": {
+    "root_cause": {
+      "component": "deployment/catalogo/catalogo-api",
+      "summary": "La revisión 31 desplegó la plantilla de clave `cat:v4:{{request_id}}:producto:{{id}}`; incluir un `request_id` distinto en cada petición hace que las claves de producto no sean reutilizables y convierte casi todas las consultas en misses. Redis responde en 1 ms, no tiene evicciones y su fragmentación solo subió de 1.48 a 1.61, por lo que reiniciarlo no corregiría la causa; el aumento de carga en PostgreSQL es consecuencia de los misses.",
+      "evidence": [
+        "deployment/catalogo-api: `deployment.kubernetes.io/revision: 31`, imagen `acrclm.azurecr.io/catalogo/api:5.4.0`, `CACHE_KEY_TEMPLATE: cat:v4:{{request_id}}:producto:{{id}}`",
+        "replicaset/catalogo-api-8c7b6a5f4: `deployment.kubernetes.io/revision: 30`, imagen `acrclm.azurecr.io/catalogo/api:5.3.1`, `CACHE_KEY_TEMPLATE: cat:v3:producto:{{id}}`",
+        "Evento: `22m Normal ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3`",
+        "Log de catalogo-api: `INFO  GET /productos/3984 200 88ms cache=miss key=cat:v4:req-f298a4:producto:980 pg=487ms`",
+        "Log de catalogo-api: `DEBUG redis SET cat:v4:req-4eee6a:producto:997 ttl=600 ok 1ms`",
+        "Métrica cache_hit_ratio: `2026-09-02T02:50:00Z  0.91`, `2026-09-02T02:55:00Z  0.12`, `2026-09-02T03:14:00Z  0.03`",
+        "Métrica redis_keys_total: `2026-09-02T02:30:00Z  48210`, `2026-09-02T02:55:00Z  310442`, `2026-09-02T03:14:00Z  1846211`",
+        "Métricas Redis a las 03:14: `redis_commands_duration_seconds_p99 ... 0.001` y `redis_evicted_keys_total ... 0`",
+        "Métrica pg_active_connections: `2026-09-02T02:50:00Z  8`, `2026-09-02T03:14:00Z  38`"
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/catalogo/catalogo-api",
+        "params": {
+          "toRevision": 30
+        },
+        "reason": "Restaurar la revisión cuya clave estable `cat:v3:producto:{{id}}` permite reutilizar entradas. Es la intervención mínima; las claves v4 de alta cardinalidad tienen TTL de 600 s y expirarán solas, sin reiniciar Redis."
+      }
+    ],
+    "confidence": 0.99
+  },
+  "usage": {
+    "input": 16272,
+    "output": 1557,
+    "total": 17829
+  },
+  "costUsd": 0.0317237,
+  "costSource": "gateway",
+  "latencyMs": 75693,
+  "score": {
+    "total": 94,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 4,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 17 tool calls vs presupuesto 8 → 4/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/catalogo/catalogo-api\", entregado \"deployment/catalogo/catalogo-api\" → 20/20",
+      "Palabras clave: 6/6 (CACHE_KEY_TEMPLATE, request_id, revision, 31, miss, evict) → 20/20",
+      "Acciones: F1 1.00 contra [rollback_deployment→deployment/catalogo/catalogo-api] → 40/40"
+    ]
+  },
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "5e27823b"
+}

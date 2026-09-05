@@ -1,0 +1,229 @@
+{
+  "id": "0dcf1444-25ec-4d8c-85b5-4740d3fd4eeb",
+  "timestamp": "2026-09-05T15:54:51.621Z",
+  "model": {
+    "id": "moonshotai/kimi-k3",
+    "label": "Kimi K3",
+    "vendor": "Moonshot",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "node-diskpressure",
+  "scenarioTitle": "Nodo con DiskPressure y pods desalojados",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "node",
+        "namespace": "-",
+        "name": "aks-userpool-11223344-vmss000002"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "object": "aks-userpool-11223344-vmss000002"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "reportes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "node_filesystem_avail_bytes",
+        "labels": {
+          "instance": "aks-userpool-11223344-vmss000002"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "reportes",
+        "name": "reportes-worker"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_fs_writes_bytes_total",
+        "labels": {
+          "namespace": "reportes"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "reportes",
+        "pod": "reportes-worker-6d7e8f9a0-c3vqn",
+        "tail": 50
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_fs_writes_bytes_total",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_fs_writes_bytes_total",
+        "labels": {
+          "namespace": "monitoring"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "reportes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/reportes/reportes-worker",
+          "summary": "La revisión 8 del Deployment reportes-worker (desplegada hace ~2h) activó LOG_LEVEL=debug, generando ~2900 líneas/seg con dumps SQL de 131072 chars. El contenedor escribió 22.6GB en 2h, agotando el ephemeral-storage del nodo aks-userpool-11223344-vmss000002 y provocando DiskPressure con evicciones de pods inocentes (catalogo-api usaba solo 84Ki).",
+          "evidence": [
+            "Evento: Evicted pod/reportes-worker-6d7e8f9a0-k8mzw - 'The node was low on resource: ephemeral-storage. Threshold quantity: 12836451328, available: 612368384. Container worker was using 9126Mi, request is 0, has larger consumption of ephemeral-storage.'",
+            "Métrica container_fs_writes_bytes_total{pod=reportes-worker-6d7e8f9a0-c3vqn, container=worker}: 120000000 (00:50Z) -> 7400000000 (01:30Z) -> 22600000000 (02:50Z)",
+            "Log literal: {\"level\":\"debug\",\"msg\":\"sql\",\"query\":\"SELECT * FROM ventas WHERE fecha >= $1\",\"rows\":18211,\"dump\":\"<...131072 chars omitidos...>\"} - '[... ~2.900 líneas/segundo a este nivel ...]'",
+            "Manifiesto deployment/reportes-worker: env LOG_LEVEL=debug, annotation deployment.kubernetes.io/revision: '8'; eventos ScalingReplicaSet (scaled up 6d7e8f9a0 / down 5c6d7e8f9) hace 2h, coincidiendo con el inicio del crecimiento de escrituras",
+            "Evento: Evicted pod/catalogo-api-6b7c8d9e0-p8kzr - 'Container api was using 84Ki' (víctima); nodo con DiskPressure=True desde 2026-09-02T02:31:04Z y taint node.kubernetes.io/disk-pressure:NoSchedule"
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/reportes/reportes-worker",
+            "reason": "Revertir a la revisión anterior (sin LOG_LEVEL=debug) detiene la escritura masiva de logs que llena el disco del nodo; el rollout termina el pod c3vqn que sigue escribiendo 22.6GB y el kubelet reclamará el ephemeral-storage, resolviendo el DiskPressure y permitiendo reagendar los pods evictados/pendientes."
+          }
+        ],
+        "confidence": 0.9
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 5,
+  "submission": {
+    "root_cause": {
+      "component": "deployment/reportes/reportes-worker",
+      "summary": "La revisión 8 del Deployment reportes-worker (desplegada hace ~2h) activó LOG_LEVEL=debug, generando ~2900 líneas/seg con dumps SQL de 131072 chars. El contenedor escribió 22.6GB en 2h, agotando el ephemeral-storage del nodo aks-userpool-11223344-vmss000002 y provocando DiskPressure con evicciones de pods inocentes (catalogo-api usaba solo 84Ki).",
+      "evidence": [
+        "Evento: Evicted pod/reportes-worker-6d7e8f9a0-k8mzw - 'The node was low on resource: ephemeral-storage. Threshold quantity: 12836451328, available: 612368384. Container worker was using 9126Mi, request is 0, has larger consumption of ephemeral-storage.'",
+        "Métrica container_fs_writes_bytes_total{pod=reportes-worker-6d7e8f9a0-c3vqn, container=worker}: 120000000 (00:50Z) -> 7400000000 (01:30Z) -> 22600000000 (02:50Z)",
+        "Log literal: {\"level\":\"debug\",\"msg\":\"sql\",\"query\":\"SELECT * FROM ventas WHERE fecha >= $1\",\"rows\":18211,\"dump\":\"<...131072 chars omitidos...>\"} - '[... ~2.900 líneas/segundo a este nivel ...]'",
+        "Manifiesto deployment/reportes-worker: env LOG_LEVEL=debug, annotation deployment.kubernetes.io/revision: '8'; eventos ScalingReplicaSet (scaled up 6d7e8f9a0 / down 5c6d7e8f9) hace 2h, coincidiendo con el inicio del crecimiento de escrituras",
+        "Evento: Evicted pod/catalogo-api-6b7c8d9e0-p8kzr - 'Container api was using 84Ki' (víctima); nodo con DiskPressure=True desde 2026-09-02T02:31:04Z y taint node.kubernetes.io/disk-pressure:NoSchedule"
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/reportes/reportes-worker",
+        "reason": "Revertir a la revisión anterior (sin LOG_LEVEL=debug) detiene la escritura masiva de logs que llena el disco del nodo; el rollout termina el pod c3vqn que sigue escribiendo 22.6GB y el kubelet reclamará el ephemeral-storage, resolviendo el DiskPressure y permitiendo reagendar los pods evictados/pendientes."
+      }
+    ],
+    "confidence": 0.9
+  },
+  "usage": {
+    "input": 23190,
+    "output": 4668,
+    "total": 27858
+  },
+  "costUsd": 0.1130112,
+  "costSource": "gateway",
+  "latencyMs": 76446,
+  "score": {
+    "total": 95,
+    "rootCause": 37,
+    "actions": 40,
+    "efficiency": 8,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 12 tool calls vs presupuesto 8 → 8/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/reportes/reportes-worker\", entregado \"deployment/reportes/reportes-worker\" → 20/20",
+      "Palabras clave: 5/6 (LOG_LEVEL, debug, ephemeral-storage, revision, reportes-worker) → 17/20",
+      "Acciones: F1 1.00 contra [rollback_deployment→deployment/reportes/reportes-worker] → 40/40"
+    ]
+  },
+  "finalText": "Investigación completa. La evidencia es concluyente:\n\n**Causa raíz:** El Deployment `reportes-worker` (revisión 8, desplegada hace ~2h) corre con `LOG_LEVEL=debug`, logueando dumps SQL de 131072 chars y frames AMQP a ~2900 líneas/segundo. Su escritura a disco pasó de 120MB a **22.6GB en 2 horas**, agotando el ephemeral-storage del nodo (umbral 12.8GB, disponible <1GB) → DiskPressure → taint NoSchedule → evicciones. Los pods de `catalogo-api` (84Ki usados) son víctimas inocentes.\n\n**Plan:** `rollback_deployment` de reportes-worker revierte a la revisión anterior conocida buena, terminando el pod que sigue llenando el disco; el kubelet reclamará entonces el almacenamiento y la presión de disco se disipará.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "e459980d"
+}

@@ -1,0 +1,206 @@
+---
+import Base from '@/layouts/Base.astro';
+import { loadBatch, loadResults, aggregate } from '@/lib/harness/store';
+import { DIMENSIONS } from '@/lib/harness/judge';
+import { SCENARIOS } from '@/scenarios';
+import { findModel } from '@/lib/harness/models';
+import FrontierChart from '@/components/FrontierChart.astro';
+import DimensionBars from '@/components/DimensionBars.astro';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+const batch = await loadBatch(id!);
+if (!batch) return new Response('Lote no encontrado', { status: 404 });
+const ids = new Set(batch.runIds);
+const runs = (await loadResults()).filter((r) => ids.has(r.id));
+const agg = aggregate(runs);
+const scenarios = SCENARIOS.filter((s) => batch.scenarios.includes(s.id));
+const judgeLabel = batch.judgeModel ? (findModel(batch.judgeModel)?.label ?? batch.judgeModel) : undefined;
+const judgeCompetes = !!batch.judgeModel && batch.models.includes(batch.judgeModel);
+const hasQuality = agg.some((m) => m.quality);
+
+const fmtCost = (c?: number) => (c == null ? '—' : c < 0.01 ? `$${c.toFixed(4)}` : `$${c.toFixed(3)}`);
+const heat = (v?: number) => (v == null ? 'heat-0' : v >= 75 ? 'heat-3' : v >= 50 ? 'heat-2' : 'heat-1');
+const barClass = (v: number) => (v >= 75 ? '' : v >= 50 ? 'mid' : 'low');
+// mejor run juzgado por modelo, para mostrar un veredicto representativo
+const sampleVerdict = (modelId: string) =>
+  runs.filter((r) => r.model.id === modelId && r.quality && !r.quality.error).sort((a, b) => b.quality!.overall - a.quality!.overall)[0]?.quality;
+---
+
+<Base title={`Lote ${batch.id}`}>
+  <div class="page-head">
+    <div>
+      <h1>Lote {batch.id}</h1>
+      <p>
+        {new Date(batch.createdAt).toLocaleString('es-ES')} · {batch.models.length} modelos × {batch.scenarios.length} escenarios × {batch.runsPer} ·
+        {runs.length} runs{batch.status === 'running' && ' (en curso)'}
+        {judgeLabel && <> · juez: {judgeLabel} ({fmtCost(batch.judgeCostUsd)} en evaluaciones)</>}
+      </p>
+    </div>
+    <a class="btn ghost" href="/">Nuevo lote</a>
+  </div>
+
+  {judgeCompetes && (
+    <div class="warn" style="margin-bottom:24px">
+      {judgeLabel} es juez y concursante en este lote. Su columna de calidad puede estar inflada por sesgo de autopreferencia.
+    </div>
+  )}
+
+  <section>
+    <div class="section-head">
+      <h2>Métricas deterministas</h2>
+      <span class="hint">Mismas reglas para todos: componente raíz, F1 de acciones, presupuesto de consultas, catálogo.</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Modelo</th><th>Score</th><th class="num">Causa</th><th class="num">Acciones</th><th class="num">Coste/run</th><th class="num">Latencia</th><th class="num">Tool calls</th><th class="num">Violaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {agg.map((m) => (
+          <tr>
+            <td>{m.label}<span class="family">{m.family}</span>{m.failed > 0 && <span class="sub" style="color:var(--coral)">{m.failed} run(s) con error</span>}</td>
+            <td><span class={`score-bar ${barClass(m.avgScore)}`}>{m.avgScore.toFixed(0)}<i><b style={`width:${m.avgScore}%`}></b></i></span></td>
+            <td class="num">{m.rootCauseAcc.toFixed(0)}%</td>
+            <td class="num">{m.actionAcc.toFixed(0)}%</td>
+            <td class="num">{fmtCost(m.avgCost)}</td>
+            <td class="num">{(m.avgLatencyMs / 1000).toFixed(1)}s</td>
+            <td class="num">{m.avgToolCalls.toFixed(1)}</td>
+            <td class="num">{m.violations}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Frontera acierto/coste</h2>
+      <span class="hint">
+        <button type="button" class="seg active" data-show="frontier-det">determinista</button>
+        {hasQuality && <button type="button" class="seg" data-show="frontier-q">calidad</button>}
+      </span>
+    </div>
+    <div class="chart-wrap">
+      <FrontierChart agg={agg} metric="det" id="frontier-det" />
+      {hasQuality && <FrontierChart agg={agg} metric="quality" id="frontier-q" />}
+    </div>
+    <p class="note" style="margin-top:8px">Verde = frontera, azul = pesos abiertos. Con un run por celda los puntos se mueven mucho entre lotes; compara con tres o más.</p>
+  </section>
+
+  {hasQuality && (
+    <section>
+      <div class="section-head">
+        <h2>Calidad según el juez</h2>
+        <span class="hint">Ciego al modelo, anclado en la referencia del escenario. 1–5 por dimensión; global 0–100. Citas = % de evidencia que existe de verdad en el snapshot.</span>
+      </div>
+      <table class="dims">
+        <thead>
+          <tr>
+            <th>Modelo</th><th>Global</th>
+            {DIMENSIONS.map((d) => <th class="num" title={d.desc}>{d.label}</th>)}
+            <th class="num">Citas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {agg.map((m) => (
+            <tr>
+              <td>{m.label}</td>
+              <td>{m.quality ? <span class={`score-bar ${barClass(m.quality.overall)}`}>{m.quality.overall.toFixed(0)}<i><b style={`width:${m.quality.overall}%`}></b></i></span> : '—'}</td>
+              {DIMENSIONS.map((d) => {
+                const v = m.quality?.dims[d.id];
+                return <td class="num">{v == null ? '—' : <>{v.toFixed(1)}<span class="dim-bar"><b style={`width:${((v - 1) / 4) * 100}%`}></b></span></>}</td>;
+              })}
+              <td class="num">{m.quality ? `${m.quality.grounding.toFixed(0)}%` : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <h3 style="margin:22px 0 10px">Dónde gana cada modelo</h3>
+      <DimensionBars agg={agg} />
+      <div class="two" style="margin-top:22px">
+        {agg.map((m) => {
+          const q = sampleVerdict(m.modelId);
+          return q ? (
+            <div>
+              <h3>{m.label}: veredicto del mejor run</h3>
+              <p class="verdict">{q.verdict}</p>
+            </div>
+          ) : null;
+        })}
+      </div>
+    </section>
+  )}
+
+  <section>
+    <div class="section-head">
+      <h2>Modelo por escenario</h2>
+      <span class="hint">{hasQuality ? 'Determinista / calidad. ' : ''}Media por celda.</span>
+    </div>
+    <div class="table-scroll">
+<table class="matrix">
+      <thead>
+        <tr><th>Modelo</th>{scenarios.map((s) => <th title={s.title}>{s.id}</th>)}</tr>
+      </thead>
+      <tbody>
+        {agg.map((m) => (
+          <tr>
+            <td>{m.label}</td>
+            {scenarios.map((s) => {
+              const c = m.byScenario[s.id];
+              return (
+                <td class={`cell ${heat(c?.avg)}`}>
+                  <span>
+                    {c ? c.avg.toFixed(0) : '—'}
+                    {c?.quality != null && <small>calidad {c.quality.toFixed(0)}</small>}
+                    {c && c.n > 1 && <small>{c.n} runs</small>}
+                  </span>
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+</div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Runs del lote</h2>
+      <span class="hint">Para ver dos runs cara a cara, usa <a href={`/duelo?batch=${batch.id}`} style="color:var(--green)">Duelo</a>.</span>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Modelo</th><th>Escenario</th><th class="num">Determ.</th><th class="num">Calidad</th><th>Plan entregado</th><th class="num">Coste</th><th class="num">Tiempo</th></tr>
+      </thead>
+      <tbody>
+        {runs.sort((a, b) => a.model.id.localeCompare(b.model.id) || a.scenarioId.localeCompare(b.scenarioId)).map((r) => (
+          <tr>
+            <td><a href={`/runs/${r.id}`}>{r.model.label}</a></td>
+            <td class="mono">{r.scenarioId}</td>
+            <td class="num">{r.score.total}</td>
+            <td class="num">{r.quality ? (r.quality.error ? <span style="color:var(--amber)" title={r.quality.error}>n/d</span> : r.quality.overall) : '—'}</td>
+            <td class="mono">
+              {r.error ? <span class="err-text">error: {r.error}</span> : r.submission ? r.submission.actions.map((a) => `${a.action} → ${a.target}`).join('; ') : <span style="color:var(--amber)">sin entrega</span>}
+            </td>
+            <td class="num">{fmtCost(r.costUsd)}</td>
+            <td class="num">{(r.latencyMs / 1000).toFixed(1)}s</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+  <script>
+    document.querySelectorAll('.seg').forEach((b) => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('.seg').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        document.querySelectorAll('.chart-wrap svg').forEach((svg) => ((svg as HTMLElement).style.display = svg.id === (b as HTMLElement).dataset.show ? 'block' : 'none'));
+      });
+    });
+    document.querySelectorAll('.chart-wrap svg').forEach((svg, i) => ((svg as HTMLElement).style.display = i === 0 ? 'block' : 'none'));
+  </script>
+</Base>

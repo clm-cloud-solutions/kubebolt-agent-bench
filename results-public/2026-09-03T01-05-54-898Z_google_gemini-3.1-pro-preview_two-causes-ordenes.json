@@ -1,0 +1,304 @@
+{
+  "id": "ff2d0bcc-84a0-40bf-b4b6-0a720b27c1c7",
+  "timestamp": "2026-09-03T01:05:54.898Z",
+  "model": {
+    "id": "google/gemini-3.1-pro-preview",
+    "label": "Gemini 3.1 Pro Preview",
+    "vendor": "Google",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "two-causes-ordenes",
+  "scenarioTitle": "api-ordenes con 18 % de 5xx: dos causas que se suman",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-a1b2c",
+        "grep": "error",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "tienda",
+        "name": "api-ordenes-7b6c5d4e3"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 6,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "tienda",
+        "name": "api-ordenes-7b6c5d4e3"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 7,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "grep": "error",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 8,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "grep": "WARN",
+        "context": 1
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 9,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 10,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 11,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 12,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 13,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "kube_pod_container_status_restarts_total",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 14,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 15,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "grep": "POST /reservas",
+        "context": 0
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 16,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/tienda/api-ordenes",
+          "summary": "El reciente despliegue de api-ordenes redujo agresivamente el timeout de conexión a inventario a 300ms sin reintentos. Dado que inventario está fuertemente estrangulado por CPU al haber alcanzado el límite de 4 réplicas de su HPA y que muchas peticiones tardan naturalmente más de 300ms, api-ordenes comenzó a fallar masivamente devolviendo errores 503 a los clientes.",
+          "evidence": [
+            "api-ordenes logs: ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client",
+            "inventario logs: WARN request queue depth=9418 (worker threads=8 all busy) cpu throttled",
+            "api-ordenes manifest (revision 42) shows INVENTARIO_TIMEOUT_MS reduced to 300 and INVENTARIO_RETRIES to 0",
+            "container_cpu_cfs_throttled_periods_ratio for inventario pods is 0.81 (81% throttled)"
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/tienda/api-ordenes",
+            "params": {
+              "toRevision": "41"
+            },
+            "reason": "Restaurar la versión anterior de api-ordenes que tenía un timeout de 1500ms y 2 reintentos, ya que 300ms es insuficiente y produce 503s."
+          },
+          {
+            "action": "update_hpa",
+            "target": "hpa/tienda/inventario",
+            "params": {
+              "maxReplicas": 10
+            },
+            "reason": "Aumentar el límite máximo de réplicas de inventario para eliminar el estrangulamiento de CPU (throttling) y reducir la latencia base."
+          }
+        ],
+        "confidence": 1
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 17,
+  "submission": {
+    "root_cause": {
+      "component": "deployment/tienda/api-ordenes",
+      "summary": "El reciente despliegue de api-ordenes redujo agresivamente el timeout de conexión a inventario a 300ms sin reintentos. Dado que inventario está fuertemente estrangulado por CPU al haber alcanzado el límite de 4 réplicas de su HPA y que muchas peticiones tardan naturalmente más de 300ms, api-ordenes comenzó a fallar masivamente devolviendo errores 503 a los clientes.",
+      "evidence": [
+        "api-ordenes logs: ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client",
+        "inventario logs: WARN request queue depth=9418 (worker threads=8 all busy) cpu throttled",
+        "api-ordenes manifest (revision 42) shows INVENTARIO_TIMEOUT_MS reduced to 300 and INVENTARIO_RETRIES to 0",
+        "container_cpu_cfs_throttled_periods_ratio for inventario pods is 0.81 (81% throttled)"
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/tienda/api-ordenes",
+        "params": {
+          "toRevision": "41"
+        },
+        "reason": "Restaurar la versión anterior de api-ordenes que tenía un timeout de 1500ms y 2 reintentos, ya que 300ms es insuficiente y produce 503s."
+      },
+      {
+        "action": "update_hpa",
+        "target": "hpa/tienda/inventario",
+        "params": {
+          "maxReplicas": 10
+        },
+        "reason": "Aumentar el límite máximo de réplicas de inventario para eliminar el estrangulamiento de CPU (throttling) y reducir la latencia base."
+      }
+    ],
+    "confidence": 1
+  },
+  "usage": {
+    "input": 171841,
+    "output": 7022,
+    "total": 178863
+  },
+  "costUsd": 0.2500772,
+  "costSource": "gateway",
+  "latencyMs": 84650,
+  "score": {
+    "total": 94,
+    "rootCause": 37,
+    "actions": 40,
+    "efficiency": 7,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 16 tool calls vs presupuesto 10 → 7/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/tienda/api-ordenes\", entregado \"deployment/tienda/api-ordenes\" → 20/20",
+      "Palabras clave: 5/6 (inventario, INVENTARIO_RETRIES, revision, 42, timeout) → 17/20",
+      "Acciones: F1 1.00 contra [update_hpa→hpa/tienda/inventario, rollback_deployment→deployment/tienda/api-ordenes] → 40/40"
+    ]
+  },
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "f3dfd2bc"
+}

@@ -1,0 +1,21 @@
+{
+  "id": "ext-anthropic-02",
+  "createdAt": "2026-09-03T01:06:18.708Z",
+  "models": [
+    "anthropic/claude-sonnet-5@agent-sdk",
+    "anthropic/claude-opus-5@agent-sdk"
+  ],
+  "scenarios": [
+    "spark-oom-airflow",
+    "two-causes-ordenes"
+  ],
+  "runsPer": 1,
+  "runIds": [
+    "05df2d96-f02b-40bb-9a29-71dc1ada3284",
+    "7daf3920-9568-4823-aa63-5d73c0a9eccf",
+    "5465942e-e71e-4bdf-9a3a-c960096c3027",
+    "8cfc7312-abe4-48ec-b851-d532fdba0d02"
+  ],
+  "status": "done",
+  "judgeCostUsd": 0
+}

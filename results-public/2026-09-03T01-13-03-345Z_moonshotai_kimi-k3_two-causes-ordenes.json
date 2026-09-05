@@ -1,0 +1,304 @@
+{
+  "id": "df8ee414-2825-44a2-9da5-4710325d171d",
+  "timestamp": "2026-09-03T01:13:03.345Z",
+  "model": {
+    "id": "moonshotai/kimi-k3",
+    "label": "Kimi K3",
+    "vendor": "Moonshot",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "two-causes-ordenes",
+  "scenarioTitle": "api-ordenes con 18 % de 5xx: dos causas que se suman",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-a1b2c",
+        "tail": 100
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-d3e4f",
+        "tail": 100
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "tail": 80
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_usage_seconds_total",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "upstream_timeout_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "node_cpu_allocatable_free_cores"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_requests_total_rate5m"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 6,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "hpa/tienda/inventario",
+          "summary": "La demanda sobre inventario se duplicó (~150→312 req/s) de forma orgánica mientras el tráfico de api-ordenes se mantuvo plano. Los pods de inventario están saturados por CPU (190% del request, throttle ratio 0.81, colas de miles) y el HPA no puede escalar porque está capado en maxReplicas=4 pese a demandar 9 réplicas. api-ordenes (timeout upstream 300ms, 0 reintentos) convierte la lentitud de inventario en 503, produciendo el 18% de 5xx. El despliegue rev 42 de api-ordenes es un herring rojo: ocurrió ~20 min después del inicio de la saturación y su tráfico no creció.",
+          "evidence": [
+            "HPA inventario: 'resource cpu on pods (as a percentage of request): 190% (950m) / 70%', 'Max replicas: 4', 'ScalingLimited True TooManyReplicas the desired replica count is more than the maximum replica count'",
+            "Evento: 'FailedComputeMetricsReplicas ... desired replicas 9 exceeds maxReplicas 4 — capped (x38)'",
+            "Logs inventario: 'WARN request queue depth=7564 (worker threads=8 all busy) cpu throttled', 'GET /stock/7045 200 1381ms (slow: cpu throttled)'",
+            "Logs api-ordenes: 'ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client'",
+            "Métricas: inventario req/s 150 (02:10) → 290 (02:30) → 312 (03:14); api-ordenes total plano 105→106 req/s; container_cpu_cfs_throttled_periods_ratio inventario 0.03 → 0.81; upstream_timeout_total_rate5m api-ordenes→inventario 0.1 → 18.9 req/s; 5xx api-ordenes 0.4 → 19 req/s",
+            "Timeline: carga de inventario ya duplicada a las 02:30; despliegue api-ordenes rev 42 a las ~02:50 (hace 25 min); pods api-ordenes Running 0 restarts"
+          ]
+        },
+        "actions": [
+          {
+            "action": "update_hpa",
+            "target": "hpa/tienda/inventario",
+            "params": {
+              "maxReplicas": 12
+            },
+            "reason": "Desbloquear el escalado que el HPA ya demanda (9 réplicas deseadas vs cap de 4). Con 9-12 pods de inventario la CPU por pod baja del límite, desaparece el throttling, las latencias vuelven <300ms y cesan los 503 de api-ordenes. Hay capacidad: 5.1 cores libres y cluster autoscaler hasta 6 nodos."
+          }
+        ],
+        "confidence": 0.9
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 7,
+  "submission": {
+    "root_cause": {
+      "component": "hpa/tienda/inventario",
+      "summary": "La demanda sobre inventario se duplicó (~150→312 req/s) de forma orgánica mientras el tráfico de api-ordenes se mantuvo plano. Los pods de inventario están saturados por CPU (190% del request, throttle ratio 0.81, colas de miles) y el HPA no puede escalar porque está capado en maxReplicas=4 pese a demandar 9 réplicas. api-ordenes (timeout upstream 300ms, 0 reintentos) convierte la lentitud de inventario en 503, produciendo el 18% de 5xx. El despliegue rev 42 de api-ordenes es un herring rojo: ocurrió ~20 min después del inicio de la saturación y su tráfico no creció.",
+      "evidence": [
+        "HPA inventario: 'resource cpu on pods (as a percentage of request): 190% (950m) / 70%', 'Max replicas: 4', 'ScalingLimited True TooManyReplicas the desired replica count is more than the maximum replica count'",
+        "Evento: 'FailedComputeMetricsReplicas ... desired replicas 9 exceeds maxReplicas 4 — capped (x38)'",
+        "Logs inventario: 'WARN request queue depth=7564 (worker threads=8 all busy) cpu throttled', 'GET /stock/7045 200 1381ms (slow: cpu throttled)'",
+        "Logs api-ordenes: 'ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client'",
+        "Métricas: inventario req/s 150 (02:10) → 290 (02:30) → 312 (03:14); api-ordenes total plano 105→106 req/s; container_cpu_cfs_throttled_periods_ratio inventario 0.03 → 0.81; upstream_timeout_total_rate5m api-ordenes→inventario 0.1 → 18.9 req/s; 5xx api-ordenes 0.4 → 19 req/s",
+        "Timeline: carga de inventario ya duplicada a las 02:30; despliegue api-ordenes rev 42 a las ~02:50 (hace 25 min); pods api-ordenes Running 0 restarts"
+      ]
+    },
+    "actions": [
+      {
+        "action": "update_hpa",
+        "target": "hpa/tienda/inventario",
+        "params": {
+          "maxReplicas": 12
+        },
+        "reason": "Desbloquear el escalado que el HPA ya demanda (9 réplicas deseadas vs cap de 4). Con 9-12 pods de inventario la CPU por pod baja del límite, desaparece el throttling, las latencias vuelven <300ms y cesan los 503 de api-ordenes. Hay capacidad: 5.1 cores libres y cluster autoscaler hasta 6 nodos."
+      }
+    ],
+    "confidence": 0.9
+  },
+  "usage": {
+    "input": 63694,
+    "output": 8876,
+    "total": 72570
+  },
+  "costUsd": 0.26153879999999996,
+  "costSource": "gateway",
+  "latencyMs": 150393,
+  "score": {
+    "total": 56,
+    "rootCause": 13,
+    "actions": 27,
+    "efficiency": 6,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 18 tool calls vs presupuesto 10 → 6/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/tienda/api-ordenes\", entregado \"hpa/tienda/inventario\" → 0/20",
+      "Palabras clave: 4/6 (maxReplicas, inventario, 42, timeout) → 13/20",
+      "Acciones: F1 0.67 contra [update_hpa→hpa/tienda/inventario, rollback_deployment→deployment/tienda/api-ordenes] → 27/40"
+    ]
+  },
+  "finalText": "Tengo evidencia suficiente. Resumen del análisis:\n\n**Cadena causal:**\n1. La demanda sobre `inventario` se duplicó (150 → 312 req/s entre 02:10 y 02:30) mientras el tráfico de `api-ordenes` se mantuvo plano (~106 req/s) → no es un pico de clientes ni efecto del despliegue.\n2. `inventario` quedó limitado por CPU: 4 pods al 190% del request (950m/500m), throttle ratio 0.81, colas de miles de peticiones y latencias >1s.\n3. El HPA de inventario quiere escalar a 9 réplicas pero está **capado en maxReplicas=4** (`ScalingLimited=True TooManyReplicas`).\n4. `api-ordenes` (timeout upstream de 300ms, sin reintentos) convierte esa lentitud en 503 → 18% 5xx y p99 2.9s.\n\n**Red herring descartado:** el despliegue rev 42 de api-ordenes (~02:50) ocurrió *después* del inicio de la saturación de inventario (~02:30), su tráfico está plano y sus pods están sanos (0 reinicios). Rollback no resolvería nada.\n\n**Capacidad:** 5.1 cores libres en el nodepool y autoscaler hasta 6 nodos → hay margen para escalar.\n\n**Acción mínima que ataca la causa raíz:** elevar `maxReplicas` del HPA de inventario para desbloquear el escalado que el propio HPA ya está pidiendo.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "f3dfd2bc"
+}

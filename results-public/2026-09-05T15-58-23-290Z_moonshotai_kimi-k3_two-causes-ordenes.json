@@ -1,0 +1,233 @@
+{
+  "id": "6375e66d-df99-4f27-bb41-918c42772a5a",
+  "timestamp": "2026-09-05T15:58:23.290Z",
+  "model": {
+    "id": "moonshotai/kimi-k3",
+    "label": "Kimi K3",
+    "vendor": "Moonshot",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "two-causes-ordenes",
+  "scenarioTitle": "api-ordenes con 18 % de 5xx: dos causas que se suman",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-a1b2c",
+        "tail": 200,
+        "grep": "error|timeout|5[0-9][0-9]|inventario",
+        "context": 1
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_usage_seconds_total",
+        "labels": {
+          "namespace": "tienda",
+          "pod": "inventario-5f4e3d2c1-m9n0o"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "upstream_timeout_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "hpa/tienda/inventario",
+          "summary": "El deployment inventario está saturado de CPU (190% del request de 500m, limitado a 1 core con 81% de throttling CFS) ante un pico de carga. Su HPA calcula 9 réplicas deseadas pero maxReplicas=4 lo capa, así que no puede escalar. api-ordenes sufre timeouts (300ms, sin retries) contra inventario y devuelve 503: los 5xx del 18% son síntoma, no causa. El despliegue rev42 de api-ordenes es coincidente en el tiempo pero la saturación de inventario lo precede.",
+          "evidence": [
+            "Log api-ordenes: \"ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client\"",
+            "HPA inventario: \"resource cpu on pods (as a percentage of request): 190% (950m) / 70%\" y \"ScalingLimited True TooManyReplicas: the desired replica count is more than the maximum replica count\"",
+            "Evento: \"FailedComputeMetricsReplicas ... desired replicas 9 exceeds maxReplicas 4 — capped (x38)\"",
+            "Métrica container_cpu_cfs_throttled_periods_ratio{pod=inventario-...}: 0.03 (02:10) -> 0.66 (02:40) -> 0.81 (03:14)",
+            "Métrica upstream_timeout_total_rate5m{service=api-ordenes, upstream=inventario}: 0.1 (02:20) -> 9.8 (02:45) -> 18.9 req/s (03:14)",
+            "Deployment inventario: requests cpu 500m, limits cpu 1; último rollout hace 12 días (sin cambios recientes); HPA rescaló a 4 hace 41 min, antes del deploy de api-ordenes"
+          ]
+        },
+        "actions": [
+          {
+            "action": "update_hpa",
+            "target": "hpa/tienda/inventario",
+            "params": {
+              "maxReplicas": 9,
+              "minReplicas": 2
+            },
+            "reason": "El HPA ya recomienda 9 réplicas pero maxReplicas=4 lo impide. Subir el tope permite escalar inventario, reducir la carga por pod (~420m, bajo el limit de 1 core) y eliminar el throttling y los timeouts que causan los 5xx en api-ordenes. El cluster autoscaler (3-6 nodos, actualmente 4) tiene margen para alojar los nuevos pods."
+          }
+        ],
+        "confidence": 0.9
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 5,
+  "submission": {
+    "root_cause": {
+      "component": "hpa/tienda/inventario",
+      "summary": "El deployment inventario está saturado de CPU (190% del request de 500m, limitado a 1 core con 81% de throttling CFS) ante un pico de carga. Su HPA calcula 9 réplicas deseadas pero maxReplicas=4 lo capa, así que no puede escalar. api-ordenes sufre timeouts (300ms, sin retries) contra inventario y devuelve 503: los 5xx del 18% son síntoma, no causa. El despliegue rev42 de api-ordenes es coincidente en el tiempo pero la saturación de inventario lo precede.",
+      "evidence": [
+        "Log api-ordenes: \"ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client\"",
+        "HPA inventario: \"resource cpu on pods (as a percentage of request): 190% (950m) / 70%\" y \"ScalingLimited True TooManyReplicas: the desired replica count is more than the maximum replica count\"",
+        "Evento: \"FailedComputeMetricsReplicas ... desired replicas 9 exceeds maxReplicas 4 — capped (x38)\"",
+        "Métrica container_cpu_cfs_throttled_periods_ratio{pod=inventario-...}: 0.03 (02:10) -> 0.66 (02:40) -> 0.81 (03:14)",
+        "Métrica upstream_timeout_total_rate5m{service=api-ordenes, upstream=inventario}: 0.1 (02:20) -> 9.8 (02:45) -> 18.9 req/s (03:14)",
+        "Deployment inventario: requests cpu 500m, limits cpu 1; último rollout hace 12 días (sin cambios recientes); HPA rescaló a 4 hace 41 min, antes del deploy de api-ordenes"
+      ]
+    },
+    "actions": [
+      {
+        "action": "update_hpa",
+        "target": "hpa/tienda/inventario",
+        "params": {
+          "maxReplicas": 9,
+          "minReplicas": 2
+        },
+        "reason": "El HPA ya recomienda 9 réplicas pero maxReplicas=4 lo impide. Subir el tope permite escalar inventario, reducir la carga por pod (~420m, bajo el limit de 1 core) y eliminar el throttling y los timeouts que causan los 5xx en api-ordenes. El cluster autoscaler (3-6 nodos, actualmente 4) tiene margen para alojar los nuevos pods."
+      }
+    ],
+    "confidence": 0.9
+  },
+  "usage": {
+    "input": 32070,
+    "output": 5809,
+    "total": 37879
+  },
+  "costUsd": 0.16785231,
+  "costSource": "gateway",
+  "latencyMs": 153627,
+  "score": {
+    "total": 60,
+    "rootCause": 13,
+    "actions": 27,
+    "efficiency": 10,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 11 tool calls vs presupuesto 10 → 10/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/tienda/api-ordenes\", entregado \"hpa/tienda/inventario\" → 0/20",
+      "Palabras clave: 4/6 (maxReplicas, inventario, 42, timeout) → 13/20",
+      "Acciones: F1 0.67 contra [update_hpa→hpa/tienda/inventario, rollback_deployment→deployment/tienda/api-ordenes] → 27/40"
+    ]
+  },
+  "finalText": "Ya tengo el cuadro completo. La evidencia es concluyente:\n\n**Cadena causal:**\n1. `inventario` está saturado de CPU: usa 950m con request de 500m (190%) y limit de 1 core → **81% de throttling CFS** (subió de 0.03 → 0.66 → 0.81).\n2. El HPA de inventario calcula **9 réplicas deseadas pero está capado a maxReplicas=4** (evento \"desired replicas 9 exceeds maxReplicas 4 — capped\" x38).\n3. `api-ordenes` hace timeout (300ms, sin reintentos) contra inventario → responde 503 → 18% 5xx y p99 2.9s. Los timeouts upstream crecen: 0.1 → 9.8 → 18.9 req/s.\n4. El despliegue de api-ordenes (rev 42) es un **red herring**: la saturación de inventario empezó ~45 min antes (HPA escaló a 4 hace 41 min, throttling al 66% a las 02:40), antes del despliegue de hace 25 min.\n\n**Acción mínima:** subir `maxReplicas` del HPA de inventario a 9 (lo que el HPA ya está pidiendo). El cluster autoscaler tiene margen (4 nodos, máx 6). Escalar a 9 pods baja la carga por pod a ~420m, eliminando también el throttling. No toco api-ordenes: es víctima, no culpable.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "e459980d"
+}

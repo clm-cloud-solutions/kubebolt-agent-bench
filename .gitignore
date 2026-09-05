@@ -1,0 +1,9 @@
+node_modules
+dist
+.astro
+.env
+results/*.json
+results/batches/*.json
+modelos.txt
+.DS_Store
+site

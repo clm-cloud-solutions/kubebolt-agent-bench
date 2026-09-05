@@ -1,0 +1,192 @@
+{
+  "id": "05df2d96-f02b-40bb-9a29-71dc1ada3284",
+  "timestamp": "2026-09-03T01:06:18.708Z",
+  "batchId": "ext-anthropic-02",
+  "model": {
+    "id": "anthropic/claude-sonnet-5@agent-sdk",
+    "label": "claude-sonnet-5 (Agent SDK)",
+    "vendor": "Anthropic",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "spark-oom-airflow",
+  "scenarioTitle": "DAG de Airflow falla; el driver de Spark muere por OOM en otro cluster",
+  "ok": true,
+  "steps": 9,
+  "toolCalls": [
+    {
+      "step": 1,
+      "name": "list_pods",
+      "input": {
+        "cluster": "orquestador",
+        "namespace": "airflow"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "get_events",
+      "input": {
+        "cluster": "orquestador",
+        "namespace": "airflow",
+        "object": "agregar_ventas"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "list_pods",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "describe",
+      "input": {
+        "cluster": "datos",
+        "kind": "pod",
+        "namespace": "spark",
+        "name": "ventas-diario-driver"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "get_logs",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark",
+        "pod": "ventas-diario-driver",
+        "previous": false,
+        "grep": "error|OOM|memory|kill"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 6,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "datos",
+        "kind": "sparkapplication",
+        "namespace": "spark",
+        "name": "ventas-diario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 7,
+      "name": "get_logs",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark",
+        "pod": "ventas-diario-1b3f9a-exec-1",
+        "grep": "error|disconnect|driver"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 8,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "sparkapplication/spark/ventas-diario",
+          "summary": "El driver de la SparkApplication 'ventas-diario' (cluster datos) muere por OutOfMemoryError (heap Java) al agregar ventas, ya que la memoria configurada (3g driver + 1g overhead, límite 4Gi) es insuficiente para el volumen de datos/broadcast del job. La caída del driver desconecta a los executors, que terminan en Error, y el fallo se propaga a la tarea de Airflow 'agregar_ventas' que solo espera el resultado del job Spark. Reintentar desde la UI de Airflow no resuelve nada porque la configuración de memoria no cambia.",
+          "evidence": [
+            "Pod ventas-diario-driver Status: Failed, State Terminated Reason: OOMKilled, Exit Code: 137, Limits memory: 4Gi",
+            "log driver: 'WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)'",
+            "log driver: 'ERROR Utils: Uncaught exception in thread driver-heartbeater' seguido de 'java.lang.OutOfMemoryError: Java heap space'",
+            "log exec-1: 'ERROR CoarseGrainedExecutorBackend: Executor self-exiting due to : Driver ...-driver-svc.spark.svc:7078 disassociated! Shutting down.'",
+            "SparkApplication spec: driver.memory=3g, driver.memoryOverhead=1g (total ~4Gi límite)"
+          ]
+        },
+        "actions": [
+          {
+            "action": "patch_resources",
+            "target": "sparkapplication/spark/ventas-diario",
+            "params": {
+              "container": "driver",
+              "memory_request": "6g",
+              "memory_limit": "7g"
+            },
+            "reason": "Aumentar la memoria del driver Spark para evitar el OutOfMemoryError durante la agregación/broadcast, causa raíz del fallo repetido."
+          },
+          {
+            "action": "no_action",
+            "target": "deployment/airflow/*",
+            "reason": "Los componentes de Airflow (scheduler, workers) funcionan correctamente; no son la causa del fallo, solo reportan el resultado del job Spark fallido. No requieren reinicio."
+          }
+        ],
+        "confidence": 0.88
+      },
+      "ok": true,
+      "ms": 1
+    }
+  ],
+  "submission": {
+    "root_cause": {
+      "component": "sparkapplication/spark/ventas-diario",
+      "summary": "El driver de la SparkApplication 'ventas-diario' (cluster datos) muere por OutOfMemoryError (heap Java) al agregar ventas, ya que la memoria configurada (3g driver + 1g overhead, límite 4Gi) es insuficiente para el volumen de datos/broadcast del job. La caída del driver desconecta a los executors, que terminan en Error, y el fallo se propaga a la tarea de Airflow 'agregar_ventas' que solo espera el resultado del job Spark. Reintentar desde la UI de Airflow no resuelve nada porque la configuración de memoria no cambia.",
+      "evidence": [
+        "Pod ventas-diario-driver Status: Failed, State Terminated Reason: OOMKilled, Exit Code: 137, Limits memory: 4Gi",
+        "log driver: 'WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)'",
+        "log driver: 'ERROR Utils: Uncaught exception in thread driver-heartbeater' seguido de 'java.lang.OutOfMemoryError: Java heap space'",
+        "log exec-1: 'ERROR CoarseGrainedExecutorBackend: Executor self-exiting due to : Driver ...-driver-svc.spark.svc:7078 disassociated! Shutting down.'",
+        "SparkApplication spec: driver.memory=3g, driver.memoryOverhead=1g (total ~4Gi límite)"
+      ]
+    },
+    "actions": [
+      {
+        "action": "patch_resources",
+        "target": "sparkapplication/spark/ventas-diario",
+        "params": {
+          "container": "driver",
+          "memory_request": "6g",
+          "memory_limit": "7g"
+        },
+        "reason": "Aumentar la memoria del driver Spark para evitar el OutOfMemoryError durante la agregación/broadcast, causa raíz del fallo repetido."
+      },
+      {
+        "action": "no_action",
+        "target": "deployment/airflow/*",
+        "reason": "Los componentes de Airflow (scheduler, workers) funcionan correctamente; no son la causa del fallo, solo reportan el resultado del job Spark fallido. No requieren reinicio."
+      }
+    ],
+    "confidence": 0.88
+  },
+  "catalogViolations": [],
+  "stopReason": "submitted",
+  "usage": {
+    "input": 35386,
+    "output": 2840,
+    "total": 38226
+  },
+  "costUsd": 0.072523,
+  "costSource": "gateway",
+  "latencyMs": 32056,
+  "score": {
+    "total": 97,
+    "rootCause": 37,
+    "actions": 40,
+    "efficiency": 10,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 7 tool calls (presupuesto 9) → 10/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"sparkapplication/spark/ventas-diario\", entregado \"sparkapplication/spark/ventas-diario\" → 20/20",
+      "Palabras clave: 5/6 (OOMKilled, 137, driver, memory, broadcast) → 17/20",
+      "Acciones: F1 1.00 contra [patch_resources→sparkapplication/spark/ventas-diario] (sin contar no_action) → 40/40"
+    ]
+  },
+  "finalText": "**Resumen del diagnóstico:**\n\n- **Causa raíz:** El driver de la `SparkApplication ventas-diario` (namespace `spark`, cluster `datos`) sufre `OutOfMemoryError: Java heap space` porque su memoria configurada (3g + 1g overhead, límite 4Gi) es insuficiente para el volumen de datos que agrega (un broadcast de ~1.9GB ya casi agota el heap). Al morir el driver (OOMKilled, exit 137), los executors se desconectan y terminan en error, y ese fallo se propaga como fallo de la tarea `agregar_ventas` en Airflow (cluster `orquestador`).\n- **Por qué el runbook no funciona:** \"Reintentar desde la UI\" no cambia la configuración de memoria del driver, por lo que el job volverá a fallar de la misma forma en cada reintento (como se ve en los 3 fallos consecutivos).\n- **Acción propuesta:** Aumentar memoria del driver de la SparkApplication (`patch_resources`) a valores que den margen suficiente (6g request / 7g limit). No se toca Airflow, ya que es víctima, no culpable.",
+  "nudged": false
+}

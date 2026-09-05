@@ -1,0 +1,211 @@
+{
+  "id": "05e8eb8f-e471-48eb-810b-14e90f31e7eb",
+  "timestamp": "2026-09-03T01:09:32.195Z",
+  "model": {
+    "id": "zai/glm-5.3",
+    "label": "GLM 5.3",
+    "vendor": "Zhipu (Z.ai)",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "spark-oom-airflow",
+  "scenarioTitle": "DAG de Airflow falla; el driver de Spark muere por OOM en otro cluster",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "orquestador",
+        "namespace": "airflow"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "datos"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "datos",
+        "kind": "pod",
+        "namespace": "spark",
+        "name": "ventas-diario-driver"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_events",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "datos",
+        "kind": "sparkapplication",
+        "namespace": "spark",
+        "name": "ventas-diario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark",
+        "pod": "ventas-diario-driver",
+        "tail": 80
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "datos",
+        "metric": "container_memory_working_set_bytes",
+        "labels": {
+          "namespace": "spark",
+          "pod": "ventas-diario-driver"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "describe",
+      "input": {
+        "cluster": "datos",
+        "kind": "pod",
+        "namespace": "spark",
+        "name": "ventas-diario-1b3f9a-exec-1"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "get_logs",
+      "input": {
+        "cluster": "orquestador",
+        "namespace": "airflow",
+        "pod": "airflow-worker-0",
+        "tail": 100,
+        "grep": "ventas-diario|ventas_diario",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "sparkapplication/spark/ventas-diario",
+          "summary": "El driver del SparkApplication ventas-diario (datos) muere por OOMKilled en cada ejecución: la imagen 2026.09.01 añadió la fuente eventos_web (41.2M filas) y el collect()/broadcast de la dimensión tiendas+productos (~1.9 GiB) no cabe en el heap de 3g del driver dentro del límite de 4Gi del contenedor. El fallo determinista del driver hace fallar la tarea agregar_ventas del DAG ventas_diario 3 veces consecutivas; Airflow, scheduler y executors son víctimas, no culpables.",
+          "evidence": [
+            "[describe pod ventas-diario-driver] State: Terminated, Reason: OOMKilled, Exit Code: 137, Limits: memory 4Gi, SPARK_DRIVER_MEMORY: 3g",
+            "[driver logs] 03:38:02 WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)",
+            "[driver logs] 03:38:08 ERROR Utils: Uncaught exception in thread driver-heartbeater java.lang.OutOfMemoryError: Java heap space",
+            "[driver logs] 03:37:31 INFO AgregarVentas: Fuentes: eventos_web (nuevo desde 2026-09-01), pos_tiendas, ecommerce | Leyendo eventos_web: 41.2M filas (ayer: 0)",
+            "[metric container_memory_working_set_bytes] 03:38:08Z 4294967296 (exactamente el límite de 4Gi, justo antes del OOMKill)",
+            "[events datos/spark] Warning SparkApplicationFailed: ventas-diario failed: driver container failed with ExitCode: 137, Reason: OOMKilled (x3)",
+            "[airflow-worker-0 logs] airflow.exceptions.AirflowException: SparkApplication ventas-diario failed: FAILED | Marking task as UP_FOR_RETRY. dag_id=ventas_diario, task_id=agregar_ventas"
+          ]
+        },
+        "actions": [
+          {
+            "action": "patch_resources",
+            "target": "sparkapplication/spark/ventas-diario",
+            "params": {
+              "container": "spark-kubernetes-driver",
+              "memory_limit": "8Gi",
+              "memory_request": "8Gi"
+            },
+            "reason": "El driver necesita ~6g de heap + overhead para materializar el broadcast de la dimensión (~2 GiB) que exige la nueva fuente eventos_web; el límite actual de 4Gi se agota de forma determinista en cada ejecución. Con 8Gi el job completará y el DAG ventas_diario dejará de fallar. No se tocan executors ni componentes de Airflow: son víctimas."
+          }
+        ],
+        "confidence": 0.95
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 6,
+  "submission": {
+    "root_cause": {
+      "component": "sparkapplication/spark/ventas-diario",
+      "summary": "El driver del SparkApplication ventas-diario (datos) muere por OOMKilled en cada ejecución: la imagen 2026.09.01 añadió la fuente eventos_web (41.2M filas) y el collect()/broadcast de la dimensión tiendas+productos (~1.9 GiB) no cabe en el heap de 3g del driver dentro del límite de 4Gi del contenedor. El fallo determinista del driver hace fallar la tarea agregar_ventas del DAG ventas_diario 3 veces consecutivas; Airflow, scheduler y executors son víctimas, no culpables.",
+      "evidence": [
+        "[describe pod ventas-diario-driver] State: Terminated, Reason: OOMKilled, Exit Code: 137, Limits: memory 4Gi, SPARK_DRIVER_MEMORY: 3g",
+        "[driver logs] 03:38:02 WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)",
+        "[driver logs] 03:38:08 ERROR Utils: Uncaught exception in thread driver-heartbeater java.lang.OutOfMemoryError: Java heap space",
+        "[driver logs] 03:37:31 INFO AgregarVentas: Fuentes: eventos_web (nuevo desde 2026-09-01), pos_tiendas, ecommerce | Leyendo eventos_web: 41.2M filas (ayer: 0)",
+        "[metric container_memory_working_set_bytes] 03:38:08Z 4294967296 (exactamente el límite de 4Gi, justo antes del OOMKill)",
+        "[events datos/spark] Warning SparkApplicationFailed: ventas-diario failed: driver container failed with ExitCode: 137, Reason: OOMKilled (x3)",
+        "[airflow-worker-0 logs] airflow.exceptions.AirflowException: SparkApplication ventas-diario failed: FAILED | Marking task as UP_FOR_RETRY. dag_id=ventas_diario, task_id=agregar_ventas"
+      ]
+    },
+    "actions": [
+      {
+        "action": "patch_resources",
+        "target": "sparkapplication/spark/ventas-diario",
+        "params": {
+          "container": "spark-kubernetes-driver",
+          "memory_limit": "8Gi",
+          "memory_request": "8Gi"
+        },
+        "reason": "El driver necesita ~6g de heap + overhead para materializar el broadcast de la dimensión (~2 GiB) que exige la nueva fuente eventos_web; el límite actual de 4Gi se agota de forma determinista en cada ejecución. Con 8Gi el job completará y el DAG ventas_diario dejará de fallar. No se tocan executors ni componentes de Airflow: son víctimas."
+      }
+    ],
+    "confidence": 0.95
+  },
+  "usage": {
+    "input": 30368,
+    "output": 6511,
+    "total": 36879
+  },
+  "costUsd": 0.0469842,
+  "costSource": "gateway",
+  "latencyMs": 91260,
+  "score": {
+    "total": 100,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 10,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 9 tool calls (presupuesto 9) → 10/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"sparkapplication/spark/ventas-diario\", entregado \"sparkapplication/spark/ventas-diario\" → 20/20",
+      "Palabras clave: 6/6 (OOMKilled, 137, driver, memory, eventos_web, broadcast) → 20/20",
+      "Acciones: F1 1.00 contra [patch_resources→sparkapplication/spark/ventas-diario] → 40/40"
+    ]
+  },
+  "finalText": "La cadena causal está completa y verificada de extremo a extremo:\n\n1. **Airflow (orquestador)**: la tarea `agregar_ventas` crea el SparkApplication `ventas-diario` en `datos/spark` → estado FAILED → tarea en UP_FOR_RETRY (3 fallos consecutivos).\n2. **Driver Spark (datos)**: con la imagen `ventas-spark:2026.09.01` se incorporó la fuente `eventos_web` (41,2M filas, nueva desde 2026-09-01). Al hacer `collect()` de la dimensión tiendas+productos para un broadcast join, el broadcast alcanza **1912,4 MiB** y no cabe en el heap del driver (3g) → `OutOfMemoryError: Java heap space`.\n3. **Métrica**: el working set del driver escala de 812 MB a **4 294 967 296 bytes (exactamente el límite de 4Gi)** a las 03:38:08 → OOMKilled (exit 137) un segundo después.\n4. Los executors murieron por limpieza tras la muerte del driver (`Killing ... Stopping container`) — son **víctimas**, igual que Airflow. No hay que tocarlos.\n\nCausa raíz: memoria del driver insuficiente (4Gi / heap 3g) para la carga nueva introducida el 2026-09-01. La acción mínima del catálogo que la resuelve es ampliar los recursos del driver en el SparkApplication.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "f3dfd2bc"
+}

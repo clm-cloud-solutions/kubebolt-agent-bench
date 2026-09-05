@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Informes · KubeBolt Agent Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #f7f6f2; --card: #ffffff; --ink: #14161a; --ink-2: #4a4f57; --ink-3: #7a8089; --line: #dedbd2; --green: #14a86c; --blue: #2f6fe4; --font: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif; --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0b0f14; --card: #11161d; --ink: #e6e9ee; --ink-2: #aab2bd; --ink-3: #7d8792; --line: #1f2731; --green: #1dbd7d; --blue: #4f86e8; } }
+  :root[data-theme="dark"] { --bg: #0b0f14; --card: #11161d; --ink: #e6e9ee; --ink-2: #aab2bd; --ink-3: #7d8792; --line: #1f2731; --green: #1dbd7d; --blue: #4f86e8; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); line-height: 1.5; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 40px 24px 64px; }
+  .eyebrow { font-family: var(--mono); font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 8px; }
+  h1 { font-size: 1.9rem; margin: 0 0 8px; text-wrap: balance; }
+  .lede { color: var(--ink-2); max-width: 65ch; margin: 0 0 28px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .card { display: block; text-decoration: none; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 20px 22px; }
+  .card:hover { border-color: var(--green); }
+  .card h2 { font-size: 1.15rem; margin: 0 0 6px; }
+  .card .when { font-family: var(--mono); font-size: .78rem; color: var(--ink-3); margin: 0 0 10px; }
+  .card p { margin: 0 0 8px; color: var(--ink-2); font-size: .95rem; }
+  .card .who { font-size: .85rem; color: var(--ink-3); }
+  .card .who b { color: var(--ink-2); font-weight: 500; }
+  .tag { display: inline-block; font-family: var(--mono); font-size: .72rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-3); margin-right: 6px; }
+  .back { margin-top: 28px; font-size: .9rem; }
+  a.plain { color: var(--blue); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">KubeBolt Agent Bench · segundo juez</p>
+  <h1>Dos informes, dos preguntas</h1>
+  <p class="lede">La misma rúbrica y la misma evaluación independiente, run a run, pero cada informe responde a una pregunta distinta. Los dos comparten los datos de <code>results-public</code> y las notas por run de todas las tandas.</p>
+  <div class="cards">
+    <a class="card" href="informe-5e27823b.html">
+      <h2>Doce modelos frente a los escenarios de contención</h2>
+      <p class="when">3 de septiembre de 2026 · lotes 5e27823b y ext-anthropic-03 · 60 runs de la tanda, 156 en la vista combinada</p>
+      <p>¿Qué hace cada modelo cuando lo correcto es no actuar, cuando el runbook engaña, cuando el log trae instrucciones, cuando la aguja está en la línea 118 de 900 o cuando la tentación es drenar el nodo? Y sobre las cuatro primeras tandas, la vista combinada de doce escenarios, la calidad frente a coste y tiempo y el coste de cien incidentes.</p>
+      <p class="who"><span class="tag">sin Fable ni Astra</span><b>Kimi K3, GLM 5.3, DeepSeek V4 Pro y Flash, GPT-5.6 Sol, Terra y Luna, Gemini 3.1 Pro y 3.8 Flash, Qwen 3.8 Max, Claude Opus 5 y Sonnet 5</b></p>
+    </a>
+    <a class="card" href="informe-e459980d.html">
+      <h2>Los tres de arriba frente a los dos más caros</h2>
+      <p class="when">5 de septiembre de 2026 · lotes e459980d y ext-anthropic-04 · 45 runs de la tanda, 201 en la vista combinada</p>
+      <p>¿Justifican Claude Fable 5.1 y GPT-6 Astra su precio frente a Kimi K3, GLM 5.3 y Claude Opus 5 en los nueve escenarios medios y difíciles? Y sobre las cinco tandas, la vista combinada, el coste, el tiempo, los cien incidentes y la primera medida de repetibilidad, con tres modelos que repiten los mismos casos.</p>
+      <p class="who"><span class="tag">top 3 + 2 nuevos</span><b>Kimi K3, GLM 5.3, Claude Opus 5, Claude Fable 5.1 y GPT-6 Astra</b></p>
+    </a>
+  </div>
+  <p class="back"><a class="plain" href="/resultados/">← Resultados, lotes y runs</a></p>
+</div>
+</body>
+</html>

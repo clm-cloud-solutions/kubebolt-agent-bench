@@ -1,0 +1,104 @@
+---
+import Base from '@/layouts/Base.astro';
+import { SCENARIOS } from '@/scenarios';
+import { CATALOG } from '@/lib/harness/catalog';
+
+const diffClass = (d: string) => d.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+---
+
+<Base title="Escenarios" description="Incidentes simulados a partir de patrones reales">
+  <div class="page-head">
+    <div>
+      <h1>Seis incidentes congelados</h1>
+      <p>
+        Cada escenario es un snapshot: pods, nodos, eventos, logs, manifests y métricas tal y como estaban en el
+        momento de la alerta. El modelo los explora con un <code>kubectl</code> falso que responde desde el snapshot,
+        así que todos los modelos ven exactamente lo mismo.
+      </p>
+    </div>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <h2>Escenarios</h2>
+      <span class="hint">La narrativa y la verdad de referencia nunca se le pasan al modelo.</span>
+    </div>
+    {SCENARIOS.map((s) => (
+      <details class="scenario">
+        <summary>
+          <div>
+            <h3>{s.title}</h3>
+            <span class="cat">{s.category}</span>
+          </div>
+          <span class="mono" style="color:var(--ink-3);font-size:.8rem">{s.id}</span>
+          <span class={`difficulty ${diffClass(s.difficulty)}`}>{s.difficulty}</span>
+        </summary>
+        <div class="scenario-body">
+          <div>
+            <h4>Alerta</h4>
+            <div class="alert-box" style="margin-bottom:16px">{s.trigger}</div>
+            <h4>Qué pasó de verdad</h4>
+            <p>{s.narrative}</p>
+          </div>
+          <div>
+            <h4>Verdad de referencia</h4>
+            <div class="kv">
+              <div>Recurso raíz: <code>{s.truth.component}</code></div>
+              <div>Palabras clave: {s.truth.keywords.map((k) => <code>{k} </code>)}</div>
+              <div>
+                Planes aceptables:
+                {s.truth.acceptableActionSets.map((set, i) => (
+                  <div style="padding-left:12px">
+                    {i + 1}. {set.map((a) => <code>{a.action} → {a.target}</code>).reduce((acc: any[], el, j) => (j ? [...acc, ' + ', el] : [el]), [])}
+                  </div>
+                ))}
+              </div>
+              {s.truth.forbiddenActions?.length && (
+                <div>
+                  Penaliza:
+                  {s.truth.forbiddenActions.map((a) => (
+                    <div style="padding-left:12px"><code>{a.action} → {a.target}</code></div>
+                  ))}
+                </div>
+              )}
+              <div>Presupuesto de tool calls: {s.truth.toolBudget}</div>
+              <div>Clusters: {s.clusters.map((c) => <code>{c.name} </code>)}</div>
+            </div>
+            <h4 style="margin-top:14px">Nota del diseñador</h4>
+            <p>{s.truth.notes}</p>
+          </div>
+        </div>
+      </details>
+    ))}
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Catálogo cerrado de acciones</h2>
+      <span class="hint">La IA razona, el catálogo acota. Cualquier acción fuera de esta lista se rechaza y se registra.</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Acción</th>
+          <th>Qué hace</th>
+          <th>Targets</th>
+          <th>Parámetros</th>
+        </tr>
+      </thead>
+      <tbody>
+        {CATALOG.map((a) => (
+          <tr>
+            <td class="mono">
+              {a.id}
+              {a.destructive && <span class="sub" style="color:var(--coral)">destructiva</span>}
+            </td>
+            <td>{a.description}</td>
+            <td class="mono">{a.targetKinds.join(', ')}</td>
+            <td class="mono">{a.params ?? '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+</Base>

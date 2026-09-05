@@ -1,0 +1,277 @@
+{
+  "id": "8207cee3-54f9-4ba7-b570-8a47233c42b9",
+  "timestamp": "2026-09-05T15:53:28.379Z",
+  "model": {
+    "id": "zai/glm-5.3",
+    "label": "GLM 5.3",
+    "vendor": "Zhipu (Z.ai)",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "two-causes-ordenes",
+  "scenarioTitle": "api-ordenes con 18 % de 5xx: dos causas que se suman",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-a1b2c",
+        "tail": 100,
+        "grep": "error|timeout|fail|5xx|exception",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_usage_seconds_total",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "node_cpu_allocatable_free_cores"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "tail": 60,
+        "grep": "error|timeout|slow|throttl|db|exception"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 4,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "upstream_timeout_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/tienda/api-ordenes",
+          "summary": "La revision 42 de api-ordenes (v3.7.0) endureció el cliente HTTP hacia inventario (timeout 300ms y 0 reintentos, antes 1500ms/2), convirtiendo en 503 el ~31% de llamadas que inventario atiende por encima de 300ms. Esto se agrava porque inventario está saturado por un tráfico duplicado (150→312 req/s) con su HPA capado a maxReplicas=4 cuando demanda 9 réplicas, provocando 81% de CPU throttling y p95≈1420ms; ya antes del despliegue el 5xx de api-ordenes era ~4% (por encima del SLO 1%) por los timeouts contra inventario.",
+          "evidence": [
+            "2026-09-02T03:02:01.271Z INFO api-ordenes 3.7.0 starting (revision 42) http-client: INVENTARIO_TIMEOUT_MS=300 INVENTARIO_RETRIES=0 (was 1500/2 in 3.6.2)",
+            "2026-09-02T03:02:47.229Z ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client req={id}",
+            "2026-09-02T03:07:39.881Z WARN upstream inventario slow: p95=1420ms over last 60s (timeout=300ms exceeded by 31% of calls)",
+            "Warning FailedComputeMetricsReplicas horizontalpodautoscaler/inventario: invalid metrics (0 invalid out of 1); desired replicas 9 exceeds maxReplicas 4 — capped (x38)",
+            "container_cpu_cfs_throttled_periods_ratio{pod=\"inventario-5f4e3d2c1-m9n0o\"}: 02:10=0.03, 02:40=0.66, 03:14=0.81 (81% de periodos throttled)",
+            "2026-09-02T03:09:30.645Z WARN request queue depth=8267 (worker threads=8 all busy) cpu throttled",
+            "http_requests_total_rate5m{service=\"api-ordenes\",code=\"5xx\"}: 02:45=4.1 req/s -> 03:00=18.2 req/s (tras el rollout), con tráfico total plano ~105 req/s",
+            "http_requests_total_rate5m{service=\"inventario\"}: 02:10=150 -> 02:30=290 -> 03:14=312 req/s (tráfico duplicado, saturación previa al despliegue)"
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/tienda/api-ordenes",
+            "params": {
+              "toRevision": "41"
+            },
+            "reason": "Revertir la revision 42 (v3.7.0) que bajó INVENTARIO_TIMEOUT_MS de 1500ms a 300ms y eliminó los reintentos; con la latencia real de inventario (~1.4s p95) esto elimina de inmediato la cascada de 503s (mitigación inmediata del SLO breach)."
+          },
+          {
+            "action": "update_hpa",
+            "target": "hpa/tienda/inventario",
+            "params": {
+              "maxReplicas": "10"
+            },
+            "reason": "Des-capar el HPA: ya computa desired=9 réplicas y no puede escalar (maxReplicas=4), dejando a inventario con 81% de throttling y p95 1.4s. Con 9-10 réplicas la utilización por pod baja a ~70% del request, eliminando el throttling y la latencia; hay 5.1 cores libres y el autoscaler admite hasta 6 nodos. Sin esto, incluso con el rollback el 5x quedaría en ~4%, por encima del SLO del 1%."
+          }
+        ],
+        "confidence": 0.9
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 6,
+  "submission": {
+    "root_cause": {
+      "component": "deployment/tienda/api-ordenes",
+      "summary": "La revision 42 de api-ordenes (v3.7.0) endureció el cliente HTTP hacia inventario (timeout 300ms y 0 reintentos, antes 1500ms/2), convirtiendo en 503 el ~31% de llamadas que inventario atiende por encima de 300ms. Esto se agrava porque inventario está saturado por un tráfico duplicado (150→312 req/s) con su HPA capado a maxReplicas=4 cuando demanda 9 réplicas, provocando 81% de CPU throttling y p95≈1420ms; ya antes del despliegue el 5xx de api-ordenes era ~4% (por encima del SLO 1%) por los timeouts contra inventario.",
+      "evidence": [
+        "2026-09-02T03:02:01.271Z INFO api-ordenes 3.7.0 starting (revision 42) http-client: INVENTARIO_TIMEOUT_MS=300 INVENTARIO_RETRIES=0 (was 1500/2 in 3.6.2)",
+        "2026-09-02T03:02:47.229Z ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client req={id}",
+        "2026-09-02T03:07:39.881Z WARN upstream inventario slow: p95=1420ms over last 60s (timeout=300ms exceeded by 31% of calls)",
+        "Warning FailedComputeMetricsReplicas horizontalpodautoscaler/inventario: invalid metrics (0 invalid out of 1); desired replicas 9 exceeds maxReplicas 4 — capped (x38)",
+        "container_cpu_cfs_throttled_periods_ratio{pod=\"inventario-5f4e3d2c1-m9n0o\"}: 02:10=0.03, 02:40=0.66, 03:14=0.81 (81% de periodos throttled)",
+        "2026-09-02T03:09:30.645Z WARN request queue depth=8267 (worker threads=8 all busy) cpu throttled",
+        "http_requests_total_rate5m{service=\"api-ordenes\",code=\"5xx\"}: 02:45=4.1 req/s -> 03:00=18.2 req/s (tras el rollout), con tráfico total plano ~105 req/s",
+        "http_requests_total_rate5m{service=\"inventario\"}: 02:10=150 -> 02:30=290 -> 03:14=312 req/s (tráfico duplicado, saturación previa al despliegue)"
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/tienda/api-ordenes",
+        "params": {
+          "toRevision": "41"
+        },
+        "reason": "Revertir la revision 42 (v3.7.0) que bajó INVENTARIO_TIMEOUT_MS de 1500ms a 300ms y eliminó los reintentos; con la latencia real de inventario (~1.4s p95) esto elimina de inmediato la cascada de 503s (mitigación inmediata del SLO breach)."
+      },
+      {
+        "action": "update_hpa",
+        "target": "hpa/tienda/inventario",
+        "params": {
+          "maxReplicas": "10"
+        },
+        "reason": "Des-capar el HPA: ya computa desired=9 réplicas y no puede escalar (maxReplicas=4), dejando a inventario con 81% de throttling y p95 1.4s. Con 9-10 réplicas la utilización por pod baja a ~70% del request, eliminando el throttling y la latencia; hay 5.1 cores libres y el autoscaler admite hasta 6 nodos. Sin esto, incluso con el rollback el 5x quedaría en ~4%, por encima del SLO del 1%."
+      }
+    ],
+    "confidence": 0.9
+  },
+  "usage": {
+    "input": 44782,
+    "output": 8475,
+    "total": 53257
+  },
+  "costUsd": 0.06469268,
+  "costSource": "gateway",
+  "latencyMs": 125011,
+  "score": {
+    "total": 99,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 9,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 13 tool calls vs presupuesto 10 → 9/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/tienda/api-ordenes\", entregado \"deployment/tienda/api-ordenes\" → 20/20",
+      "Palabras clave: 6/6 (maxReplicas, inventario, INVENTARIO_RETRIES, revision, 42, timeout) → 20/20",
+      "Acciones: F1 1.00 contra [update_hpa→hpa/tienda/inventario, rollback_deployment→deployment/tienda/api-ordenes] → 40/40"
+    ]
+  },
+  "finalText": "El cuadro está completo y consistente. Síntesis de la cadena causal:\n\n**1. Regresión en el despliegue (disparador):** La revision 42 de `api-ordenes` (v3.7.0) cambió el cliente HTTP hacia `inventario` de `TIMEOUT=1500ms/RETRIES=2` a `TIMEOUT=300ms/RETRIES=0`. Con `inventario` respondiendo en p95≈1420ms, el 31% de las llamadas exceden 300ms y se convierten en 503 sin reintento. El salto de 5xx de 4.1 a 18.2 req/s coincide exactamente con el rollout (03:00-03:02), con el tráfico total plano (~105 req/s).\n\n**2. Saturación de `inventario` (causa subyacente):** Su tráfico se duplicó (150→312 req/s desde 02:10), está al 81% de periodos con CPU throttled (límite 1 core), con colas de miles de peticiones y latencias de 1.1-1.9s. El HPA pide 9 réplicas pero está capado a `maxReplicas: 4`. Ya antes del despliegue (02:45) había 4% de 5xx — por encima del SLO del 1% — así que el rollback solo no restaura el SLO: hay que descapar el HPA. Hay margen: 5.1 cores libres en el nodepool y autoscaler hasta 6 nodos.\n\nLos pods de `inventario` son víctimas (no los reinicio); los culpables son la mala config de la revision 42 y el tope del HPA.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "e459980d"
+}

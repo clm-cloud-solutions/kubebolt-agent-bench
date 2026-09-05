@@ -1,0 +1,215 @@
+{
+  "id": "f9e36f1f-ee29-4597-9db8-431797c03df6",
+  "timestamp": "2026-09-03T01:08:34.561Z",
+  "model": {
+    "id": "deepseek/deepseek-v4-flash-0731",
+    "label": "DeepSeek V4 Flash (0731)",
+    "vendor": "DeepSeek",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "two-causes-ordenes",
+  "scenarioTitle": "api-ordenes con 18 % de 5xx: dos causas que se suman",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-a1b2c",
+        "tail": 200,
+        "grep": "error|5xx|timeout|panic|exception",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "tail": 200,
+        "grep": "error|timeout|slow|warn|panic|overload",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_usage_seconds_total",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/tienda/api-ordenes",
+          "summary": "El despliegue v3.7.0 (revision 42) de api-ordenes redujo INVENTARIO_TIMEOUT_MS de 1500 a 300 y INVENTARIO_RETRIES de 2 a 0. El upstream inventario está sobrecargado (CPU throttled, p95=1420ms) y el 31% de las llamadas superan los 300ms, por lo que api-ordenes responde 503, causando el 18% de 5xx. La versión anterior (3.6.2) toleraba esa latencia.",
+          "evidence": [
+            "api-ordenes 3.7.0 starting (revision 42) http-client: INVENTARIO_TIMEOUT_MS=300 INVENTARIO_RETRIES=0 (was 1500/2 in 3.6.2)",
+            "ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client req={id}",
+            "WARN upstream inventario slow: p95=1420ms over last 60s (timeout=300ms exceeded by 31% of calls)",
+            "inventario: WARN request queue depth=8476 (worker threads=8 all busy) cpu throttled",
+            "hpa/inventario: desired replicas 9 exceeds maxReplicas 4 — capped; CPU 190% (950m) / 70%"
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/tienda/api-ordenes",
+            "reason": "Restaura la configuración tolerante anterior (INVENTARIO_TIMEOUT_MS=1500, RETRIES=2) que no generaba 5xx ante la latencia del upstream inventario. Es la acción mínima que resuelve el 18% de 5xx."
+          },
+          {
+            "action": "update_hpa",
+            "target": "hpa/tienda/inventario",
+            "params": {
+              "maxReplicas": 9
+            },
+            "reason": "El HPA de inventario está scaling-limited (deseado 9 > max 4) y el servicio está CPU-throttled con colas enormes; elevar maxReplicas permite escalar y aliviar la latencia del upstream que dispara los timeouts."
+          }
+        ],
+        "confidence": 0.88
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 4,
+  "submission": {
+    "root_cause": {
+      "component": "deployment/tienda/api-ordenes",
+      "summary": "El despliegue v3.7.0 (revision 42) de api-ordenes redujo INVENTARIO_TIMEOUT_MS de 1500 a 300 y INVENTARIO_RETRIES de 2 a 0. El upstream inventario está sobrecargado (CPU throttled, p95=1420ms) y el 31% de las llamadas superan los 300ms, por lo que api-ordenes responde 503, causando el 18% de 5xx. La versión anterior (3.6.2) toleraba esa latencia.",
+      "evidence": [
+        "api-ordenes 3.7.0 starting (revision 42) http-client: INVENTARIO_TIMEOUT_MS=300 INVENTARIO_RETRIES=0 (was 1500/2 in 3.6.2)",
+        "ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client req={id}",
+        "WARN upstream inventario slow: p95=1420ms over last 60s (timeout=300ms exceeded by 31% of calls)",
+        "inventario: WARN request queue depth=8476 (worker threads=8 all busy) cpu throttled",
+        "hpa/inventario: desired replicas 9 exceeds maxReplicas 4 — capped; CPU 190% (950m) / 70%"
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/tienda/api-ordenes",
+        "reason": "Restaura la configuración tolerante anterior (INVENTARIO_TIMEOUT_MS=1500, RETRIES=2) que no generaba 5xx ante la latencia del upstream inventario. Es la acción mínima que resuelve el 18% de 5xx."
+      },
+      {
+        "action": "update_hpa",
+        "target": "hpa/tienda/inventario",
+        "params": {
+          "maxReplicas": 9
+        },
+        "reason": "El HPA de inventario está scaling-limited (deseado 9 > max 4) y el servicio está CPU-throttled con colas enormes; elevar maxReplicas permite escalar y aliviar la latencia del upstream que dispara los timeouts."
+      }
+    ],
+    "confidence": 0.88
+  },
+  "usage": {
+    "input": 25395,
+    "output": 6234,
+    "total": 31629
+  },
+  "costUsd": 0.00538329,
+  "costSource": "gateway",
+  "latencyMs": 57632,
+  "score": {
+    "total": 100,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 10,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 9 tool calls (presupuesto 10) → 10/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/tienda/api-ordenes\", entregado \"deployment/tienda/api-ordenes\" → 20/20",
+      "Palabras clave: 6/6 (maxReplicas, inventario, INVENTARIO_RETRIES, revision, 42, timeout) → 20/20",
+      "Acciones: F1 1.00 contra [update_hpa→hpa/tienda/inventario, rollback_deployment→deployment/tienda/api-ordenes] → 40/40"
+    ]
+  },
+  "finalText": "La evidencia es concluyente. Confirmo el diagnóstico:\n\n**api-ordenes (revision 42, v3.7.0):** el log de arranque dice literalmente `INVENTARIO_TIMEOUT_MS=300 INVENTARIO_RETRIES=0 (was 1500/2 in 3.6.2)`, y repetidamente `ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503`.\n\n**Upstream inventario:** sobrecargado y CPU-throttled (`request queue depth=8476 (worker threads=8 all busy) cpu throttled`, `GET /stock/7316 200 1755ms (slow: cpu throttled)`). El HPA muestra CPU 190% (950m) / target 70%, y el evento `desired replicas 9 exceeds maxReplicas 4 — capped`.\n\nEl despliegue de hace 25 min redujo el timeout a 300ms y retries a 0, lo que convierte la lentitud del upstream (p95=1420ms) en 503s. Antes (3.6.2, timeout 1500ms/2 retries) toleraba esa latencia. La causa raíz del 5xx es el cambio de configuración del despliegue.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "f3dfd2bc"
+}

@@ -1,0 +1,39 @@
+{
+  "id": "7ddf9a00",
+  "createdAt": "2026-09-02T21:47:34.938Z",
+  "models": [
+    "anthropic/claude-fable-5.1",
+    "anthropic/claude-opus-5",
+    "anthropic/claude-sonnet-5",
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-terra",
+    "openai/gpt-5.6-luna",
+    "google/gemini-3.8-flash",
+    "deepseek/deepseek-v4-pro-0813",
+    "deepseek/deepseek-v4-flash-0731",
+    "zai/glm-5.3",
+    "alibaba/qwen3.8-max-0902",
+    "moonshotai/kimi-k3"
+  ],
+  "scenarios": [
+    "configmap-crashloop"
+  ],
+  "runsPer": 1,
+  "judgeModel": "anthropic/claude-opus-5",
+  "runIds": [
+    "f647a308-b1db-4658-b6fc-344e5f2c082d",
+    "178f0337-0cfc-436a-a401-490f5fdefac9",
+    "bb0a07a1-b65b-42d9-b7e3-98dffc2d0709",
+    "85a5c7e3-8930-4336-9dce-4f04ed2b3cb9",
+    "8f5553fd-a3be-40f2-9ced-87d2978580a7",
+    "40cb91d2-13f7-410a-94bc-0dd491076eb7",
+    "a0159abe-f5ad-41e6-826d-eaa17392d8df",
+    "4002af03-8f31-48a9-975b-6f85ab231214",
+    "b6d60be0-0b40-4344-a893-7e7c72fb5503",
+    "c777f902-96e1-4954-b419-ee1c1c19ad20",
+    "92e682c4-68b4-4a53-b097-878be96d71b1",
+    "2dd147cf-1af7-4434-8c33-39d20aed4a2c"
+  ],
+  "status": "done",
+  "judgeCostUsd": 0.6532450000000001
+}

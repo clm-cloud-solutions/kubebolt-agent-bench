@@ -1,0 +1,48 @@
+{
+  "evaluador": "Claude Fable 5.1 (segundo juez, no ciego)",
+  "rubrica": "Misma escala 1-5 por dimensión que judge.ts; global = (media-1)/4*100",
+  "runs": {
+    "hpa-maxed": {
+      "anthropic/claude-opus-5":        { "d": [5,5,4,4,5,5], "nota": "Diagnóstico completo y bien argumentado; las 12 citas son exactas aunque el verificador marcó 7. Sube también el request a 750m, que altera el cálculo del HPA y reserva 9 cores con 6.4 libres: un extra discutible." },
+      "anthropic/claude-sonnet-5":      { "d": [5,5,4,4,5,4], "nota": "Correcto y económico; descarta OpenSearch con un describe. Incluye un no_action sobre OpenSearch como acción del plan, que es ruido para quien ejecuta y le cuesta 13 puntos deterministas." },
+      "deepseek/deepseek-v4-flash-0731":{ "d": [5,5,2,5,5,4], "nota": "Plan mínimo perfecto (update_hpa 12 con capacidad justificada). Gasta 19 llamadas, con paseos por catalogo, ingress-nginx y monitoring cuando ya tenía la respuesta." },
+      "deepseek/deepseek-v4-pro-0813":  { "d": [5,5,3,5,5,4], "nota": "Todo correcto; 14 llamadas con redundancias (memoria, réplicas current y desired por separado). 125 s de latencia, la más lenta del escenario tras Qwen." },
+      "google/gemini-3.1-pro-preview":  { "d": [5,4,5,4,4,4], "nota": "Siete consultas justas y plan correcto. maxReplicas=15 sin comprobar cores libres, tres citas escuetas, y confianza 1.0 como en todos sus runs: no está calibrada." },
+      "google/gemini-3.8-flash":        { "d": [5,5,2,5,5,4], "nota": "Cinco citas literales y update_hpa 15. Tantea tres nombres de kind distintos para el mismo manifiesto y visita namespaces ajenos: 18 llamadas para un caso de 7." },
+      "zai/glm-5.3":                    { "d": [4,5,3,4,4,4], "nota": "Cadena causal correcta pero señala el deployment, no el HPA, como raíz. Sube el request a 1 core: 12 pods reservarían 12 cores con 6.4 libres; el autoscaler lo cubre, pero es innecesario." },
+      "openai/gpt-5.6-luna":            { "d": [5,5,4,5,5,4], "nota": "El más barato del lote (0,3 centavos) con un plan del conjunto aceptable y seis citas exactas. Solo sobra revisar OpenSearch al final cuando los logs ya lo descartaban." },
+      "openai/gpt-5.6-sol":             { "d": [5,5,2,5,5,4], "nota": "Diagnóstico y acción impecables, con aritmética de capacidad. Abre una rama entera sobre OpenSearch (logs, describe, eventos) tras ver upstream ~100 ms: 18 llamadas." },
+      "openai/gpt-5.6-terra":           { "d": [5,5,2,4,5,4], "nota": "Correcto, pero fija maxReplicas=11, exactamente el deseado actual: sin margen, el HPA volverá a topar con el siguiente pico. 20 llamadas con pods y OpenSearch duplicados." },
+      "moonshotai/kimi-k3":             { "d": [5,5,3,5,5,5], "nota": "El único que cita el log de OpenSearch (queue=3, active=6/8) para descartarlo. Razona que subir el límite no altera el HPA. 14 llamadas con un describe y un manifest redundantes." },
+      "alibaba/qwen3.8-max-0902":       { "d": [4,5,2,5,5,5], "nota": "La mejor justificación del plan (12×500m cabe en 6.4 cores; request intacto para no distorsionar el HPA; sin tocar memoria). Raíz en el deployment en vez del HPA y 20 llamadas, la mitad prescindibles." }
+    },
+    "imagepull-tag": {
+      "anthropic/claude-opus-5":        { "d": [5,5,4,5,5,4], "nota": "Descarta el pull secret comparando con otros workloads y avisa de que ArgoCD revertirá el rollback: es lo que haría un senior. Pero tras demostrarlo, deja caer un 'conviene verificar el secret', mordiendo el señuelo a medias." },
+      "anthropic/claude-sonnet-5":      { "d": [5,5,5,5,5,4], "nota": "Tres consultas, cinco citas exactas, rollback a la 21 con justificación de seguridad (réplicas viejas sanas). Le falta el aviso al equipo del typo." },
+      "deepseek/deepseek-v4-flash-0731":{ "d": [4,2,2,1,3,2], "nota": "Llega a la causa pero termina escribiendo un resumen en vez de llamar a submit_remediation: no hay plan, ni citas formales, ni confianza. Para un agente autónomo es un fallo de protocolo, no un matiz." },
+      "deepseek/deepseek-v4-pro-0813":  { "d": [5,5,4,5,5,4], "nota": "Rollback limpio en 6 consultas; enmarca el 401 como intento inicial previo al NotFound. Deja la corrección del tag a CI en la justificación, no como acción." },
+      "google/gemini-3.1-pro-preview":  { "d": [5,4,5,5,4,4], "nota": "Tres consultas y rollback. Dos citas, ninguna sobre las réplicas viejas que justifican que el rollback es seguro; resumen de una frase; confianza 1.0." },
+      "google/gemini-3.8-flash":        { "d": [5,5,3,5,4,4], "nota": "Diagnóstico y citas correctas. Las dos últimas llamadas (todos los pods del cluster y los nodos) son relleno cuando ya tenía la respuesta en el paso 7." },
+      "zai/glm-5.3":                    { "d": [5,5,3,5,5,4], "nota": "Rollback más escalado a CI/CD, bien. Repite list_pods y get_events, y en la escalada pide revisar 'las credenciales', un resto del señuelo del 401." },
+      "openai/gpt-5.6-luna":            { "d": [5,5,4,5,5,4], "nota": "Once segundos y 0,2 centavos para un rollback correcto con cuatro citas exactas. Un describe de ReplicaSet de más." },
+      "openai/gpt-5.6-sol":             { "d": [5,5,4,5,5,4], "nota": "Cinco citas literales del describe y rollback. El list_nodes no aporta nada; sin aviso al equipo de la pipeline." },
+      "openai/gpt-5.6-terra":           { "d": [5,5,4,5,5,4], "nota": "Rollback correcto; consulta los eventos de acr-pull para descartar el señuelo de forma explícita, que es buen criterio. Dos manifests redundantes." },
+      "moonshotai/kimi-k3":             { "d": [5,5,4,5,5,5], "nota": "Rollback más escalado con la observación de ArgoCD y una entrega que separa mitigación de arreglo duradero. Repite list_pods y pide un manifest de pod innecesario." },
+      "alibaba/qwen3.8-max-0902":       { "d": [4,2,2,1,3,2], "nota": "Diagnóstico correcto en el texto final ('antes de entregar el plan') y luego no entrega. Dos barridos de cluster completos por el camino. Sin plan no hay remediación que puntuar." }
+    },
+    "node-diskpressure": {
+      "anthropic/claude-opus-5":        { "d": [5,5,4,5,5,5], "nota": "Diez consultas sin desvío, siete citas exactas (serie de disco incluida), rollback a la 7 y escalado por el sync de ArgoCD, con propuesta de límites de ephemeral-storage. Un get_events final sobrante." },
+      "anthropic/claude-sonnet-5":      { "d": [1,1,4,1,2,1], "nota": "Siete consultas bien dirigidas (llega al manifest y a los logs del culpable) y se detiene sin entregar nada: ni plan, ni texto, ni hipótesis. El peor run del lote por resultado, no por criterio." },
+      "deepseek/deepseek-v4-flash-0731":{ "d": [5,5,2,2,3,3], "nota": "Aísla al culpable comparando escrituras (22,6 GB frente a 1,3 MB de las víctimas). Luego escala afirmando que el arreglo no está en el catálogo, cuando rollback_deployment sí lo está: deja el incendio encendido." },
+      "deepseek/deepseek-v4-pro-0813":  { "d": [5,5,2,5,5,4], "nota": "Correlaciona rollout, escrituras y caída de disco, con el nodo hermano como control. Rollback correcto. 22 llamadas, dos ConfigMaps adivinados que no existen, y 5,5 minutos de latencia." },
+      "google/gemini-3.1-pro-preview":  { "d": [5,5,5,5,5,4], "nota": "Cuatro consultas: nodo, eventos, logs del pod que aparece en el describe del nodo, manifest. Rollback. Resumen escueto sin mencionar la revisión 8 ni una mitigación mientras se libera disco; confianza 1.0." },
+      "google/gemini-3.8-flash":        { "d": [5,5,3,5,5,4], "nota": "Cinco citas correctas (el verificador solo reconoció una) y rollback. Adivina un ConfigMap 'reportes-config' y pide el manifest del ReplicaSet viejo sin necesidad." },
+      "zai/glm-5.3":                    { "d": [5,5,3,3,3,4], "nota": "Rollback correcto, pero añade dos delete_pod: el del pod vivo es redundante con el rollback y el del pod desalojado tiene lógica (libera sus logs) pero es un extra destructivo no pedido. 243 s de latencia." },
+      "openai/gpt-5.6-luna":            { "d": [5,5,2,5,5,4], "nota": "Seis citas exactas (el verificador marcó cuatro) y rollback. 22 llamadas con una rama entera sobre promtail y eventos de catalogo y pagos que no cambiaban nada." },
+      "openai/gpt-5.6-sol":             { "d": [5,5,2,5,5,4], "nota": "Descarta a las víctimas comparando escrituras por namespace y cita el 429 de promtail como corroboración: buen olfato. Pero 23 llamadas, con CPU y memoria irrelevantes." },
+      "openai/gpt-5.6-terra":           { "d": [4,5,3,2,3,3], "nota": "Cinco citas exactas y culpable correcto, pero no liga el problema al rollout reciente y escala afirmando que el catálogo no permite el arreglo. Rollback estaba disponible. Confianza 0.98 sin actuar." },
+      "moonshotai/kimi-k3":             { "d": [5,5,4,5,5,5], "nota": "Cronología completa, víctimas identificadas con su consumo (84Ki), rollback con explicación de cómo el kubelet recupera el disco, y razona por qué no drena ni reinicia. Una métrica duplicada." },
+      "alibaba/qwen3.8-max-0902":       { "d": [5,5,3,5,5,4], "nota": "Nueve citas, todas verificables, incluida la anotación de ArgoCD que el verificador no encontró. Rollback más escalado detallado. Un carácter extraño ('残留') en la escalada y 13 llamadas." }
+    }
+  }
+}

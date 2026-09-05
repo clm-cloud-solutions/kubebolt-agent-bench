@@ -1,0 +1,277 @@
+{
+  "id": "426e3118-06e6-42e5-b87f-90da8607e29b",
+  "timestamp": "2026-09-03T01:49:11.264Z",
+  "model": {
+    "id": "alibaba/qwen3.8-max-0902",
+    "label": "Qwen 3.8 Max (0902)",
+    "vendor": "Alibaba",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "runbook-trap-cache",
+  "scenarioTitle": "catalogo-api con 3 % de aciertos de caché: el runbook culpa a redis",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "catalogo-api-9d8c7b6a5-q1w2e",
+        "tail": 200,
+        "grep": "redis|cache|error|timeout|connect",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "catalogo",
+        "name": "catalogo-api-8c7b6a5f4"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "redis-catalogo-0",
+        "tail": 60,
+        "grep": "error|OOM|evict|maxmemory|warn|fragment",
+        "context": 1
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_memory_working_set_bytes",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "catalogo",
+        "name": "catalogo-api-8c7b6a5f4"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "cache_hit_ratio",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_evicted_keys_total"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "pg_active_connections"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/catalogo/catalogo-api",
+          "summary": "El rollout de catalogo-api a la revisión 31 (imagen 5.4.0) cambió la variable de entorno CACHE_KEY_TEMPLATE de 'cat:v3:producto:{{id}}' a 'cat:v4:{{request_id}}:producto:{{id}}'. Al incluir el request_id, cada petición genera una clave de cache única e irrepetible, por lo que las entradas escritas en Redis nunca vuelven a leerse: el hit ratio cae al 3% y todo el tráfico de productos impacta directamente en Postgres. Redis es una víctima, no el culpable: no tiene claves evictadas ni presión de memoria, así que el reinicio que sugiere el runbook no corregiría nada.",
+          "evidence": [
+            "Deployment catalogo-api rev 31 env: CACHE_KEY_TEMPLATE = \"cat:v4:{{request_id}}:producto:{{id}}\"  vs ReplicaSet catalogo-api-8c7b6a5f4 rev 30 env: CACHE_KEY_TEMPLATE = \"cat:v3:producto:{{id}}\"",
+            "Log catalogo-api: 'GET /productos/8791 200 630ms cache=miss key=cat:v4:req-a9c73a:producto:7480 pg=599ms' (el token req-a9c73a es distinto en cada request: 'req-2d9d52', 'req-c7aba2', 'req-e21648'...)",
+            "Log catalogo-api: 'DEBUG redis SET cat:v4:req-c4d2a0:producto:7326 ttl=600 ok 1ms' -> Redis acepta las escrituras en 1ms, la cache funciona pero la clave nunca se reutiliza",
+            "Log catalogo-api: 'GET /categorias 200 763ms cache=hit key=cat:v4:categorias' -> las claves sin request_id siguen haciendo hit, descartando fallo de Redis",
+            "Evento: '22m Normal ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3' / '20m ... Scaled down replica set catalogo-api-8c7b6a5f4 to 0'",
+            "Métrica cache_hit_ratio: 0.92 (02:30) -> 0.91 (02:50) -> 0.12 (02:55) -> 0.03 (03:00 y 03:14), caída alineada con el rollout",
+            "Log redis-catalogo-0: 'used_memory_human:1.56G maxmemory_human:2.00G mem_fragmentation_ratio:1.61 evicted_keys:0 keyspace_hits:402 keyspace_misses:13808' -> sin evicciones ni OOM, el runbook de 'memoria fragmentada' no aplica",
+            "Métrica redis_evicted_keys_total{pod=\"redis-catalogo-0\"}: 0 en 02:30 y 0 en 03:14 (plana durante todo el incidente)",
+            "Métrica pg_active_connections{pod=\"pg-catalogo-0\"}: 8 (02:50) -> 38 (03:14), la carga x5 en Postgres es consecuencia de los misses",
+            "Pod redis-catalogo-0 con 0 restarts y 41d de antigüedad, descartando crash o degradación del servidor de cache"
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/catalogo/catalogo-api",
+            "params": {
+              "toRevision": 30
+            },
+            "reason": "Acción mínima que elimina la causa raíz: revierte a la revisión 30, que usa CACHE_KEY_TEMPLATE 'cat:v3:producto:{{id}}' (clave estable por producto). Esto restaura el hit ratio a ~92% y descarga Postgres de inmediato. No se reinicia redis-catalogo porque es una víctima sana (evicted_keys=0, 1.56G/2.00G) y su reinicio solo añadiría indisponibilidad; las ~1.8M claves huérfanas cat:v4:req-* expiran solas por su TTL de 600s."
+          },
+          {
+            "action": "escalate_to_human",
+            "target": "deployment/catalogo/catalogo-api",
+            "params": {
+              "team": "catalogo-dev",
+              "reason_detail": "El rollback es una medida de contención. La plantilla de clave de cache con {{request_id}} vive en el manifiesto gestionado por ArgoCD (tracking-id catalogo:apps/Deployment:catalogo/catalogo-api) y en la imagen api:5.4.0, ambos fuera del alcance del catálogo de acciones: si no se corrige en Git, ArgoCD re-aplicará la rev 31 y el incidente se repetirá en el próximo sync. Se pide al equipo de catalogo que corrija CACHE_KEY_TEMPLATE en el repo GitOps y valide el esquema de claves antes de re-lanzar 5.4.0."
+            },
+            "reason": "Corregir de forma permanente la regresión en GitOps/código, ya que el catálogo no permite editar manifiestos gestionados por ArgoCD ni modificar la imagen."
+          }
+        ],
+        "confidence": 0.95
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 6,
+  "submission": {
+    "root_cause": {
+      "component": "deployment/catalogo/catalogo-api",
+      "summary": "El rollout de catalogo-api a la revisión 31 (imagen 5.4.0) cambió la variable de entorno CACHE_KEY_TEMPLATE de 'cat:v3:producto:{{id}}' a 'cat:v4:{{request_id}}:producto:{{id}}'. Al incluir el request_id, cada petición genera una clave de cache única e irrepetible, por lo que las entradas escritas en Redis nunca vuelven a leerse: el hit ratio cae al 3% y todo el tráfico de productos impacta directamente en Postgres. Redis es una víctima, no el culpable: no tiene claves evictadas ni presión de memoria, así que el reinicio que sugiere el runbook no corregiría nada.",
+      "evidence": [
+        "Deployment catalogo-api rev 31 env: CACHE_KEY_TEMPLATE = \"cat:v4:{{request_id}}:producto:{{id}}\"  vs ReplicaSet catalogo-api-8c7b6a5f4 rev 30 env: CACHE_KEY_TEMPLATE = \"cat:v3:producto:{{id}}\"",
+        "Log catalogo-api: 'GET /productos/8791 200 630ms cache=miss key=cat:v4:req-a9c73a:producto:7480 pg=599ms' (el token req-a9c73a es distinto en cada request: 'req-2d9d52', 'req-c7aba2', 'req-e21648'...)",
+        "Log catalogo-api: 'DEBUG redis SET cat:v4:req-c4d2a0:producto:7326 ttl=600 ok 1ms' -> Redis acepta las escrituras en 1ms, la cache funciona pero la clave nunca se reutiliza",
+        "Log catalogo-api: 'GET /categorias 200 763ms cache=hit key=cat:v4:categorias' -> las claves sin request_id siguen haciendo hit, descartando fallo de Redis",
+        "Evento: '22m Normal ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3' / '20m ... Scaled down replica set catalogo-api-8c7b6a5f4 to 0'",
+        "Métrica cache_hit_ratio: 0.92 (02:30) -> 0.91 (02:50) -> 0.12 (02:55) -> 0.03 (03:00 y 03:14), caída alineada con el rollout",
+        "Log redis-catalogo-0: 'used_memory_human:1.56G maxmemory_human:2.00G mem_fragmentation_ratio:1.61 evicted_keys:0 keyspace_hits:402 keyspace_misses:13808' -> sin evicciones ni OOM, el runbook de 'memoria fragmentada' no aplica",
+        "Métrica redis_evicted_keys_total{pod=\"redis-catalogo-0\"}: 0 en 02:30 y 0 en 03:14 (plana durante todo el incidente)",
+        "Métrica pg_active_connections{pod=\"pg-catalogo-0\"}: 8 (02:50) -> 38 (03:14), la carga x5 en Postgres es consecuencia de los misses",
+        "Pod redis-catalogo-0 con 0 restarts y 41d de antigüedad, descartando crash o degradación del servidor de cache"
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/catalogo/catalogo-api",
+        "params": {
+          "toRevision": 30
+        },
+        "reason": "Acción mínima que elimina la causa raíz: revierte a la revisión 30, que usa CACHE_KEY_TEMPLATE 'cat:v3:producto:{{id}}' (clave estable por producto). Esto restaura el hit ratio a ~92% y descarga Postgres de inmediato. No se reinicia redis-catalogo porque es una víctima sana (evicted_keys=0, 1.56G/2.00G) y su reinicio solo añadiría indisponibilidad; las ~1.8M claves huérfanas cat:v4:req-* expiran solas por su TTL de 600s."
+      },
+      {
+        "action": "escalate_to_human",
+        "target": "deployment/catalogo/catalogo-api",
+        "params": {
+          "team": "catalogo-dev",
+          "reason_detail": "El rollback es una medida de contención. La plantilla de clave de cache con {{request_id}} vive en el manifiesto gestionado por ArgoCD (tracking-id catalogo:apps/Deployment:catalogo/catalogo-api) y en la imagen api:5.4.0, ambos fuera del alcance del catálogo de acciones: si no se corrige en Git, ArgoCD re-aplicará la rev 31 y el incidente se repetirá en el próximo sync. Se pide al equipo de catalogo que corrija CACHE_KEY_TEMPLATE en el repo GitOps y valide el esquema de claves antes de re-lanzar 5.4.0."
+        },
+        "reason": "Corregir de forma permanente la regresión en GitOps/código, ya que el catálogo no permite editar manifiestos gestionados por ArgoCD ni modificar la imagen."
+      }
+    ],
+    "confidence": 0.95
+  },
+  "usage": {
+    "input": 38228,
+    "output": 4232,
+    "total": 42460
+  },
+  "costUsd": 0.04988,
+  "costSource": "gateway",
+  "latencyMs": 56651,
+  "score": {
+    "total": 94,
+    "rootCause": 37,
+    "actions": 40,
+    "efficiency": 7,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 13 tool calls vs presupuesto 8 → 7/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/catalogo/catalogo-api\", entregado \"deployment/catalogo/catalogo-api\" → 20/20",
+      "Palabras clave: 5/6 (CACHE_KEY_TEMPLATE, request_id, 31, miss, evict) → 17/20",
+      "Acciones: F1 1.00 contra [rollback_deployment→deployment/catalogo/catalogo-api] (sin contar escalate_to_human) → 40/40"
+    ]
+  },
+  "finalText": "Causa raíz confirmada. La evidencia es concluyente:\n\n**Comparativa de revisiones del Deployment:**\n\n| | Rev 30 (anterior) | Rev 31 (actual, hace 22 min) |\n|---|---|---|\n| Imagen | `api:5.3.1` | `api:5.4.0` |\n| `CACHE_KEY_TEMPLATE` | `cat:v3:producto:{{id}}` | `cat:v4:{{request_id}}:producto:{{id}}` |\n\nEl rollout a rev 31 inyectó `{{request_id}}` en la plantilla de clave: cada request genera una clave única e irrepetible, así que la entrada escrita en Redis nunca vuelve a leerse. Las claves estáticas (`cat:v4:categorias`) siguen haciendo hit, lo que confirma que Redis responde correctamente y que el fallo es de construcción de clave, no de infraestructura.\n\n**Descarte del runbook:** Redis está sano — `evicted_keys: 0` (métrica plana a 0 durante todo el incidente), `used_memory 1.56G / maxmemory 2.00G`, sin OOM ni errores, 41 días sin reinicios. `keyspace_hits:402 / misses:13808` refleja el síntoma, no memoria fragmentada. Reiniciar redis-catalogo no habría cambiado nada y habría añadido una ventana de indisponibilidad.\n\n**Correlación temporal exacta:** hit ratio 0.92 (02:30) → 0.91 (02:50) → 0.12 (02:55) → 0.03, coincidiendo con el `ScalingReplicaSet` de hace 22 min. Las conexiones a Postgres pasaron de 8 a 38 (×5 de carga) como consecuencia directa del 97% de misses.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "5e27823b"
+}

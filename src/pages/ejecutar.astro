@@ -1,0 +1,186 @@
+---
+import Base from '@/layouts/Base.astro';
+import { MODELS } from '@/lib/harness/models';
+import { SCENARIOS } from '@/scenarios';
+import { READONLY } from '@/lib/harness/readonly';
+
+if (READONLY) return Astro.redirect('/resultados', 302);
+
+const scenarioMeta = Object.fromEntries(SCENARIOS.map((s) => [s.id, { trigger: s.trigger, title: s.title }]));
+---
+
+<Base title="Ejecutar" description="Lanza un escenario contra un modelo y sigue la investigación en vivo">
+  <div class="page-head">
+    <div>
+      <h1>Ejecutar un escenario</h1>
+      <p>Verás cada herramienta que el modelo llama, lo que recibe, y el plan que entrega. Al terminar, el run se guarda y aparece en Resultados.</p>
+    </div>
+  </div>
+
+  <form class="run-form" id="run-form">
+    <label class="field">
+      <span>Modelo</span>
+      <select name="model" id="model">
+        {MODELS.map((m) => (
+          <option value={m.id}>{m.label} ({m.vendor})</option>
+        ))}
+      </select>
+    </label>
+    <label class="field">
+      <span>Escenario</span>
+      <select name="scenario" id="scenario">
+        {SCENARIOS.map((s) => (
+          <option value={s.id}>{s.title} · {s.difficulty}</option>
+        ))}
+      </select>
+    </label>
+    <label class="field">
+      <span>Pasos máximos</span>
+      <input type="number" name="maxSteps" id="maxSteps" value="25" min="5" max="60" style="min-width:110px" />
+    </label>
+    <button class="btn" type="submit" id="run-btn">Investigar</button>
+  </form>
+
+  <section>
+    <div class="section-head">
+      <h2>Alerta que recibe el agente</h2>
+    </div>
+    <div class="alert-box" id="trigger"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Investigación</h2>
+      <span class="hint" id="status">Sin ejecutar</span>
+    </div>
+    <div class="trace" id="trace">
+      <div class="trace-head"><span class="pulse"></span><span id="trace-label">Esperando</span></div>
+      <div class="trace-body" id="trace-body">
+        <div class="trace-empty">La traza aparece aquí: llamadas, resultados, razonamiento intermedio y la entrega final.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="score-section" hidden>
+    <div class="section-head">
+      <h2>Puntuación</h2>
+      <span class="hint">Determinista: mismo run, misma nota. Sin LLM juez.</span>
+    </div>
+    <div class="scorecard" id="scorecard"></div>
+  </section>
+
+  <script define:vars={{ scenarioMeta }}>
+    const $ = (s) => document.querySelector(s);
+    const form = $('#run-form');
+    const btn = $('#run-btn');
+    const trace = $('#trace');
+    const body = $('#trace-body');
+    const status = $('#status');
+    const label = $('#trace-label');
+    const scoreSection = $('#score-section');
+    const scorecard = $('#scorecard');
+    const scenarioSel = $('#scenario');
+    const trigger = $('#trigger');
+
+    const showTrigger = () => (trigger.textContent = scenarioMeta[scenarioSel.value]?.trigger ?? '');
+    scenarioSel.addEventListener('change', showTrigger);
+    showTrigger();
+
+    const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const fmtInput = (i) =>
+      Object.entries(i)
+        .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
+        .join('  ');
+
+    function push(kind, step, kindLabel, content) {
+      const div = document.createElement('div');
+      div.className = `ev ${kind}`;
+      div.innerHTML = `<span class="step">${step ? '#' + step : ''}</span><span class="kind">${esc(kindLabel)}</span><pre>${esc(content)}</pre>`;
+      body.appendChild(div);
+      body.scrollTop = body.scrollHeight;
+    }
+
+    function renderScore(r) {
+      const s = r.score;
+      const cost = r.costUsd == null ? '—' : `$${r.costUsd.toFixed(4)} (${r.costSource === 'gateway' ? 'gateway' : r.costSource === 'pricing' ? 'tarifa' : 'n/d'})`;
+      const sub = r.submission;
+      scorecard.innerHTML = `
+        <div><div class="big">${s.total}<small> /100</small></div></div>
+        <div>
+          <div class="parts">
+            <div class="part">Causa raíz<b>${s.rootCause}<small style="color:var(--ink-3)">/40</small></b></div>
+            <div class="part">Acciones<b>${s.actions}<small style="color:var(--ink-3)">/40</small></b></div>
+            <div class="part">Eficiencia<b>${s.efficiency}<small style="color:var(--ink-3)">/10</small></b></div>
+            <div class="part">Seguridad<b>${s.safety}<small style="color:var(--ink-3)">/10</small></b></div>
+          </div>
+          <div class="meta">
+            <span>${r.toolCalls.length} tool calls</span>
+            <span>${r.steps} pasos</span>
+            <span>${(r.latencyMs / 1000).toFixed(1)}s</span>
+            <span>${r.usage.input.toLocaleString('es')} in / ${r.usage.output.toLocaleString('es')} out tokens</span>
+            <span>coste ${cost}</span>
+          </div>
+          ${sub ? `<p class="note" style="margin-bottom:10px"><strong style="color:var(--ink)">Causa raíz entregada:</strong> ${esc(sub.root_cause.component)} — ${esc(sub.root_cause.summary)}</p>` : ''}
+          <ul class="details">${s.details.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>
+          ${r.error ? `<p class="note" style="color:var(--coral);margin-top:10px">Error: ${esc(r.error)}</p>` : ''}
+        </div>`;
+      scoreSection.hidden = false;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btn.disabled = true;
+      body.innerHTML = '';
+      scoreSection.hidden = true;
+      trace.classList.add('live');
+      status.textContent = 'Investigando';
+      const model = $('#model').value;
+      const scenario = scenarioSel.value;
+      const maxSteps = Number($('#maxSteps').value) || 25;
+      label.textContent = `${model} sobre ${scenario}`;
+
+      try {
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, scenario, maxSteps }),
+        });
+        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let idx;
+          while ((idx = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, idx).trim();
+            buf = buf.slice(idx + 1);
+            if (!line) continue;
+            const ev = JSON.parse(line);
+            switch (ev.type) {
+              case 'start': push('text', 0, 'inicio', `${ev.model} · ${ev.scenario}`); break;
+              case 'tool_call': push('call', ev.step + 1, ev.name, fmtInput(ev.input)); break;
+              case 'tool_result': push('result', ev.step + 1, ev.ok ? 'resultado' : 'resultado ✗', ev.preview + (ev.preview.length >= 240 ? ' …' : '')); break;
+              case 'text': push('text', ev.step, 'razona', ev.text); break;
+              case 'violation': push('violation', '', 'catálogo', ev.message); break;
+              case 'submission':
+                push('submission', '', 'entrega', `${ev.submission.root_cause.component}\n${ev.submission.root_cause.summary}\n\n${ev.submission.actions.map((a) => `${a.action} → ${a.target}${a.params ? ' ' + JSON.stringify(a.params) : ''}`).join('\n')}\n\nconfianza ${ev.submission.confidence}`);
+                break;
+              case 'error': push('error', '', 'error', ev.message); break;
+              case 'done': renderScore(ev.result); break;
+            }
+          }
+        }
+        status.textContent = 'Terminado y guardado';
+      } catch (err) {
+        push('error', '', 'error', err.message);
+        status.textContent = 'Falló';
+      } finally {
+        trace.classList.remove('live');
+        btn.disabled = false;
+      }
+    });
+  </script>
+</Base>

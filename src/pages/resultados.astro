@@ -1,0 +1,194 @@
+---
+import Base from '@/layouts/Base.astro';
+import { loadResults, aggregate, loadBatches } from '@/lib/harness/store';
+import { SCENARIOS } from '@/scenarios';
+
+const results = await loadResults();
+const batches = await loadBatches();
+const agg = aggregate(results);
+const recent = results.slice(0, 12);
+
+const fmtCost = (c?: number) => (c == null ? '—' : c < 0.01 ? `$${c.toFixed(4)}` : `$${c.toFixed(3)}`);
+const fmtSec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+const heat = (v?: number) => (v == null ? 'heat-0' : v >= 75 ? 'heat-3' : v >= 50 ? 'heat-2' : 'heat-1');
+const barClass = (v: number) => (v >= 75 ? '' : v >= 50 ? 'mid' : 'low');
+const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+---
+
+<Base title="Resultados" description="Comparativa de modelos en investigación agéntica de incidentes Kubernetes">
+  <div class="page-head">
+    <div>
+      <h1>Qué modelo encuentra la causa raíz, y a qué precio</h1>
+      <p>
+        Cada run es la misma alerta, el mismo snapshot del cluster y el mismo catálogo cerrado de acciones. Lo que cambia
+        es el modelo. {results.length} runs registrados.
+      </p>
+    </div>
+    <a class="btn" href="/">Nueva ejecución</a>
+  </div>
+
+  {results.length === 0 ? (
+    <div class="empty">
+      <p>Todavía no hay runs. <a href="/">Configura una ejecución</a> o lanza el CLI: <code>npm run bench</code>.</p>
+    </div>
+  ) : (
+    <>
+      {batches.length > 0 && (
+        <section>
+          <div class="section-head">
+            <h2>Lotes</h2>
+            <span class="hint">Cada lote compara sus propios runs; las tablas de abajo agregan todo el histórico.</span>
+          </div>
+          <table>
+            <thead><tr><th>Lote</th><th>Cuándo</th><th>Modelos</th><th>Escenarios</th><th class="num">Runs</th><th>Juez</th></tr></thead>
+            <tbody>
+              {batches.slice(0, 10).map((b) => (
+                <tr>
+                  <td class="mono"><a href={`/lotes/${b.id}`}>{b.id}</a>{b.status === 'running' && <span class="sub" style="color:var(--amber)">en curso</span>}</td>
+                  <td>{fmtDate(b.createdAt)}</td>
+                  <td>{b.models.length}</td>
+                  <td>{b.scenarios.length}</td>
+                  <td class="num">{b.runIds.length}</td>
+                  <td class="mono">{b.judgeModel ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+      <section>
+        <div class="section-head">
+          <h2>Clasificación</h2>
+          <span class="hint">Score medio sobre 100. Causa = % de runs que identifican el recurso raíz. Acciones = % con plan exacto.</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Modelo</th>
+              <th>Score</th>
+              <th class="num">Causa</th>
+              <th class="num">Acciones</th>
+              <th class="num">Coste/run</th>
+              <th class="num">Latencia</th>
+              <th class="num">Tool calls</th>
+              <th class="num">Violaciones</th>
+              <th class="num">Runs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {agg.map((m) => (
+              <tr>
+                <td>
+                  {m.label}<span class="family">{m.family}</span>
+                  <span class="sub mono">{m.modelId}</span>
+                </td>
+                <td>
+                  <span class={`score-bar ${barClass(m.avgScore)}`}>
+                    {m.avgScore.toFixed(0)}
+                    <i><b style={`width:${m.avgScore}%`}></b></i>
+                  </span>
+                </td>
+                <td class="num">{m.rootCauseAcc.toFixed(0)}%</td>
+                <td class="num">{m.actionAcc.toFixed(0)}%</td>
+                <td class="num">{fmtCost(m.avgCost)}</td>
+                <td class="num">{fmtSec(m.avgLatencyMs)}</td>
+                <td class="num">{m.avgToolCalls.toFixed(1)}</td>
+                <td class="num">{m.violations}</td>
+                <td class="num">
+                  {m.runs}
+                  {m.failed > 0 && <span class="sub">{m.failed} con error</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Modelo por escenario</h2>
+          <span class="hint">Score medio y número de runs por celda.</span>
+        </div>
+        <div class="table-scroll">
+<table class="matrix">
+          <thead>
+            <tr>
+              <th>Modelo</th>
+              {SCENARIOS.map((s) => (
+                <th title={s.title}>{s.id}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {agg.map((m) => (
+              <tr>
+                <td>{m.label}</td>
+                {SCENARIOS.map((s) => {
+                  const c = m.byScenario[s.id];
+                  return (
+                    <td class={`cell ${heat(c?.avg)}`}>
+                      <span>
+                        {c ? c.avg.toFixed(0) : '—'}
+                        {c && <small>{c.n} run{c.n > 1 ? 's' : ''}</small>}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+</div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Últimos runs</h2>
+          <span class="hint">Los ficheros completos están en <code>results/</code>.</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Cuándo</th>
+              <th>Modelo</th>
+              <th>Escenario</th>
+              <th>Score</th>
+              <th>Plan entregado</th>
+              <th class="num">Coste</th>
+              <th class="num">Tiempo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recent.map((r) => (
+              <tr>
+                <td class="mono">
+                  <a href={`/runs/${r.id}`}>{fmtDate(r.timestamp)}</a>
+                </td>
+                <td>{r.model.label}</td>
+                <td>
+                  {r.scenarioTitle}
+                  <span class="sub mono">{r.scenarioId}</span>
+                </td>
+                <td>
+                  <span class={`score-bar ${barClass(r.score.total)}`}>
+                    {r.score.total}
+                    <i><b style={`width:${r.score.total}%`}></b></i>
+                  </span>
+                </td>
+                <td class="mono">
+                  {r.error
+                    ? <span class="err-text">error: {r.error}</span>
+                    : r.submission
+                      ? r.submission.actions.map((a) => `${a.action} → ${a.target}`).join('; ')
+                      : <span style="color:var(--amber)">sin entrega</span>}
+                </td>
+                <td class="num">{fmtCost(r.costUsd)}</td>
+                <td class="num">{fmtSec(r.latencyMs)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </>
+  )}
+</Base>

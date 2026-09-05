@@ -1,0 +1,385 @@
+{
+  "id": "089659f4-873e-4543-aaac-ec753c92d218",
+  "timestamp": "2026-09-05T16:03:57.216Z",
+  "batchId": "ext-anthropic-04",
+  "model": {
+    "id": "anthropic/claude-fable-5-1@agent-sdk",
+    "label": "claude-fable-5-1 (Agent SDK)",
+    "vendor": "Anthropic",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "two-causes-ordenes",
+  "scenarioTitle": "api-ordenes con 18 % de 5xx: dos causas que se suman",
+  "ok": true,
+  "steps": 24,
+  "toolCalls": [
+    {
+      "step": 1,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "object": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-a1b2c",
+        "tail": 200,
+        "grep": "error|timeout|fail|5\\d\\d",
+        "context": 1
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 5,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 6,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "object": "inventario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 7,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "tienda",
+        "name": "api-ordenes-7b6c5d4e3"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 8,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_request_duration_seconds_p99",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 6
+    },
+    {
+      "step": 9,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 2
+    },
+    {
+      "step": 10,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "tienda",
+        "name": "api-ordenes-7b6c5d4e3"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 11,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 12,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 13,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "upstream_timeout_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 14,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 15,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "node_cpu_allocatable_free_cores"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 16,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "tail": 100,
+        "grep": "error|warn|slow|timeout|throttl|pool|queue",
+        "context": 1
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 17,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 18,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 19,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 20,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "tail": 40,
+        "grep": "client|caller|source|user-agent|from=|origin"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 21,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 22,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "node",
+        "namespace": "-",
+        "name": "aks-userpool-11223344-vmss000003"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 23,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "hpa/tienda/inventario",
+          "summary": "El servicio upstream `inventario` está saturado de CPU: su HPA está capado en maxReplicas=4 mientras el autoscaler calcula 9 réplicas necesarias, con 190% de CPU sobre request, 81% de periodos CFS throttled y colas de miles de peticiones, lo que dispara sus latencias a 1.1–1.8 s. El despliegue de `api-ordenes` rev 42 (3.7.0) redujo INVENTARIO_TIMEOUT_MS de 1500 a 300 y INVENTARIO_RETRIES de 2 a 0, de modo que cada llamada lenta a inventario pasa a responder 503 directamente: el 5xx saltó de 4.6 a 18.2 req/s justo tras el rollout. inventario es la causa raíz (ya había ~4% de 5xx antes del despliegue, por encima del SLO); la rev 42 es el amplificador.",
+          "evidence": [
+            "hpa/inventario: ScalingLimited True TooManyReplicas 'the desired replica count is more than the maximum replica count'; cpu 190% (950m) / 70%; Max replicas: 4",
+            "event hpa/inventario: 'desired replicas 9 exceeds maxReplicas 4 — capped (x38)'",
+            "container_cpu_cfs_throttled_periods_ratio{pod=inventario-5f4e3d2c1-m9n0o}: 02:10 0.03 -> 02:40 0.66 -> 03:14 0.81",
+            "inventario log: 'WARN request queue depth=9964 (worker threads=8 all busy) cpu throttled'; 'GET /stock/7505 200 1834ms (slow: cpu throttled)'",
+            "http_requests_total_rate5m{service=inventario}: 150 -> 290 -> 312 req/s (api-ordenes plano en 105-106 req/s)",
+            "api-ordenes log: 'ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client'",
+            "replicaset api-ordenes-7b6c5d4e3 (rev 41, 3.6.2): INVENTARIO_TIMEOUT_MS=1500, INVENTARIO_RETRIES=2 ; deployment api-ordenes (rev 42, 3.7.0): INVENTARIO_TIMEOUT_MS=300, INVENTARIO_RETRIES=0",
+            "http_requests_total_rate5m{service=api-ordenes,code=5xx}: 02:45 4.1 -> 02:55 4.6 -> 03:00 18.2 -> 03:14 19 req/s (rollout rev 42 ~02:49)",
+            "upstream_timeout_total_rate5m{service=api-ordenes,upstream=inventario}: 0.1 -> 9.8 -> 18.9 req/s",
+            "node_cpu_allocatable_free_cores{nodepool=aks-userpool}: 5.1 cores libres; nodepool 4/6 nodos"
+          ]
+        },
+        "actions": [
+          {
+            "action": "update_hpa",
+            "target": "hpa/tienda/inventario",
+            "params": {
+              "maxReplicas": 10
+            },
+            "reason": "El HPA calcula 9 réplicas necesarias y está capado en 4; subir a 10 deja escalar hasta lo que pide la carga actual con margen. Capacidad disponible: 5.1 cores libres + autoscaler con 2 nodos de margen (6 pods extra x 500m request = 3 cores)."
+          },
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/tienda/api-ordenes",
+            "params": {
+              "toRevision": 41
+            },
+            "reason": "La rev 42 recortó el timeout a inventario de 1500ms a 300ms y eliminó los reintentos (2->0), convirtiendo la latencia del upstream en 503 al cliente (5xx 4.6 -> 18.2 req/s al desplegar). Volver a rev 41 restaura la tolerancia mientras inventario escala. Nota: api-ordenes está gestionado por ArgoCD (tracking-id); hay que pausar el auto-sync o revertir los valores en Git para que el rollback no sea sobrescrito."
+          }
+        ],
+        "confidence": 0.85
+      },
+      "ok": true,
+      "ms": 2
+    }
+  ],
+  "submission": {
+    "root_cause": {
+      "component": "hpa/tienda/inventario",
+      "summary": "El servicio upstream `inventario` está saturado de CPU: su HPA está capado en maxReplicas=4 mientras el autoscaler calcula 9 réplicas necesarias, con 190% de CPU sobre request, 81% de periodos CFS throttled y colas de miles de peticiones, lo que dispara sus latencias a 1.1–1.8 s. El despliegue de `api-ordenes` rev 42 (3.7.0) redujo INVENTARIO_TIMEOUT_MS de 1500 a 300 y INVENTARIO_RETRIES de 2 a 0, de modo que cada llamada lenta a inventario pasa a responder 503 directamente: el 5xx saltó de 4.6 a 18.2 req/s justo tras el rollout. inventario es la causa raíz (ya había ~4% de 5xx antes del despliegue, por encima del SLO); la rev 42 es el amplificador.",
+      "evidence": [
+        "hpa/inventario: ScalingLimited True TooManyReplicas 'the desired replica count is more than the maximum replica count'; cpu 190% (950m) / 70%; Max replicas: 4",
+        "event hpa/inventario: 'desired replicas 9 exceeds maxReplicas 4 — capped (x38)'",
+        "container_cpu_cfs_throttled_periods_ratio{pod=inventario-5f4e3d2c1-m9n0o}: 02:10 0.03 -> 02:40 0.66 -> 03:14 0.81",
+        "inventario log: 'WARN request queue depth=9964 (worker threads=8 all busy) cpu throttled'; 'GET /stock/7505 200 1834ms (slow: cpu throttled)'",
+        "http_requests_total_rate5m{service=inventario}: 150 -> 290 -> 312 req/s (api-ordenes plano en 105-106 req/s)",
+        "api-ordenes log: 'ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client'",
+        "replicaset api-ordenes-7b6c5d4e3 (rev 41, 3.6.2): INVENTARIO_TIMEOUT_MS=1500, INVENTARIO_RETRIES=2 ; deployment api-ordenes (rev 42, 3.7.0): INVENTARIO_TIMEOUT_MS=300, INVENTARIO_RETRIES=0",
+        "http_requests_total_rate5m{service=api-ordenes,code=5xx}: 02:45 4.1 -> 02:55 4.6 -> 03:00 18.2 -> 03:14 19 req/s (rollout rev 42 ~02:49)",
+        "upstream_timeout_total_rate5m{service=api-ordenes,upstream=inventario}: 0.1 -> 9.8 -> 18.9 req/s",
+        "node_cpu_allocatable_free_cores{nodepool=aks-userpool}: 5.1 cores libres; nodepool 4/6 nodos"
+      ]
+    },
+    "actions": [
+      {
+        "action": "update_hpa",
+        "target": "hpa/tienda/inventario",
+        "params": {
+          "maxReplicas": 10
+        },
+        "reason": "El HPA calcula 9 réplicas necesarias y está capado en 4; subir a 10 deja escalar hasta lo que pide la carga actual con margen. Capacidad disponible: 5.1 cores libres + autoscaler con 2 nodos de margen (6 pods extra x 500m request = 3 cores)."
+      },
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/tienda/api-ordenes",
+        "params": {
+          "toRevision": 41
+        },
+        "reason": "La rev 42 recortó el timeout a inventario de 1500ms a 300ms y eliminó los reintentos (2->0), convirtiendo la latencia del upstream en 503 al cliente (5xx 4.6 -> 18.2 req/s al desplegar). Volver a rev 41 restaura la tolerancia mientras inventario escala. Nota: api-ordenes está gestionado por ArgoCD (tracking-id); hay que pausar el auto-sync o revertir los valores en Git para que el rollback no sea sobrescrito."
+      }
+    ],
+    "confidence": 0.85
+  },
+  "catalogViolations": [],
+  "stopReason": "submitted",
+  "usage": {
+    "input": 86925,
+    "output": 7804,
+    "total": 94729
+  },
+  "costUsd": 0.808026,
+  "costSource": "gateway",
+  "latencyMs": 97131,
+  "score": {
+    "total": 71,
+    "rootCause": 17,
+    "actions": 40,
+    "efficiency": 4,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 22 tool calls vs presupuesto 10 → 4/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/tienda/api-ordenes\", entregado \"hpa/tienda/inventario\" → 0/20",
+      "Palabras clave: 5/6 (maxReplicas, inventario, INVENTARIO_RETRIES, 42, timeout) → 17/20",
+      "Acciones: F1 1.00 contra [update_hpa→hpa/tienda/inventario, rollback_deployment→deployment/tienda/api-ordenes] → 40/40"
+    ]
+  },
+  "finalText": "Plan entregado. Resumen del incidente:\n\n**Causa raíz — `hpa/tienda/inventario` capado**\n`inventario` está saturado de CPU: el HPA quiere 9 réplicas pero `maxReplicas=4` (`desired replicas 9 exceeds maxReplicas 4 — capped (x38)`), CPU al 190% del request, 81% de periodos CFS throttled, colas de ~10k peticiones y latencias de 1.1–1.8 s. El tráfico hacia inventario se duplicó (150→312 req/s) desde ~02:30, antes del despliegue de api-ordenes.\n\n**Amplificador — `api-ordenes` rev 42**\nEl rollout de hace 25 min cambió `INVENTARIO_TIMEOUT_MS` 1500→300 y `INVENTARIO_RETRIES` 2→0. Cada llamada lenta a inventario pasa a devolver 503 sin reintentar (`ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503`). El 5xx saltó de 4.6 a 18.2 req/s exactamente al desplegar.\n\n**Acciones propuestas**\n1. `update_hpa` inventario → `maxReplicas: 10` (hay 5.1 cores libres y el nodepool tiene margen 4→6 nodos).\n2. `rollback_deployment` api-ordenes → revisión 41, para recuperar timeout 1500ms / 2 retries mientras inventario escala. Aviso: api-ordenes lo gestiona ArgoCD; hay que pausar el auto-sync o revertir en Git para que no se sobrescriba.\n\n**Pendiente de seguimiento (fuera de mi alcance con estas herramientas):** identificar qué cliente duplicó el tráfico a inventario — no registra el caller en logs y `catalogo` no expone métricas HTTP — y revisar con el equipo si el timeout de 300 ms de la 3.7.0 es viable una vez inventario tenga capacidad.",
+  "nudged": false
+}

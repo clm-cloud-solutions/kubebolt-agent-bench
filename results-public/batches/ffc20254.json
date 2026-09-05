@@ -1,0 +1,52 @@
+{
+  "id": "ffc20254",
+  "createdAt": "2026-09-02T22:51:16.650Z",
+  "models": [
+    "anthropic/claude-opus-5",
+    "anthropic/claude-sonnet-5",
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-terra",
+    "openai/gpt-5.6-luna",
+    "google/gemini-3.1-pro-preview",
+    "google/gemini-3.8-flash",
+    "deepseek/deepseek-v4-pro-0813",
+    "deepseek/deepseek-v4-flash-0731",
+    "zai/glm-5.3",
+    "alibaba/qwen3.8-max-0902",
+    "moonshotai/kimi-k3"
+  ],
+  "scenarios": [
+    "dependency-escalate",
+    "spark-oom-airflow"
+  ],
+  "runsPer": 1,
+  "judgeModel": "anthropic/claude-opus-5",
+  "runIds": [
+    "3dee9889-12c6-437f-9314-2b1f789511e0",
+    "a343950d-86db-46a8-9a76-9e418095483f",
+    "729d5675-b8ea-40f4-8e91-c468508d3b3d",
+    "6e83fd6e-10ab-42bb-9839-f3c85d9f014d",
+    "622f582d-f29f-4461-bc6e-1626e120659a",
+    "32c368a4-a129-431f-bc78-ac1a51151d2e",
+    "f793cbab-2571-4883-b2cf-7be2754bf230",
+    "69c3b8b4-13b7-407d-afe9-6ac76b84b548",
+    "50bdfda8-50f9-49d9-b80e-d0cf4a366791",
+    "9f2bf8d4-52df-4b62-aa27-a13493bec816",
+    "6e56a7eb-bb0d-4331-953a-515aa64b92cc",
+    "80f115f8-6470-4947-95b1-64261e7022f7",
+    "939b584c-b453-4941-83eb-38c1ecd76983",
+    "477fbb75-28bd-4b69-88dd-05f54e8d02b0",
+    "fa1bb2e6-6ac4-4116-8c9e-5db038bb8b55",
+    "2ef008ca-9e68-4f88-9652-8cff1874db63",
+    "b9fc9117-6a94-43a5-9940-d47fa528a25e",
+    "3f050cb7-e79a-4d0e-84d0-33756cd2f0a8",
+    "8ef77060-b7b3-4b21-8fc3-2bb8021eea70",
+    "aaca7440-de52-4eac-992e-1a1ac253401e",
+    "cde10a2e-4d01-4478-94fa-83a678629fb6",
+    "4dadab7c-0e7c-4078-ae41-18b91ee0f882",
+    "73686bc4-4d5c-479e-a130-5890609ebe64",
+    "aa433c2e-e47e-450b-bc7a-e1e96775a93c"
+  ],
+  "status": "done",
+  "judgeCostUsd": 1.307265
+}

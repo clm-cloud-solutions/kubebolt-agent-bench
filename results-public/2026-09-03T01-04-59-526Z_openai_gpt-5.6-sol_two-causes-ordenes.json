@@ -1,0 +1,484 @@
+{
+  "id": "6cc34d75-f6ef-42d0-b471-edd80e031921",
+  "timestamp": "2026-09-03T01:04:59.526Z",
+  "model": {
+    "id": "openai/gpt-5.6-sol",
+    "label": "GPT-5.6 Sol",
+    "vendor": "OpenAI",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "two-causes-ordenes",
+  "scenarioTitle": "api-ordenes con 18 % de 5xx: dos causas que se suman",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "object": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "kube_pod_container_status_restarts_total",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_memory_working_set_bytes",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_usage_seconds_total",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-a1b2c",
+        "container": "api",
+        "previous": false,
+        "tail": 500,
+        "grep": "error|timeout|timed out|5[0-9][0-9]|inventario",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-d3e4f",
+        "container": "api",
+        "previous": false,
+        "tail": 500,
+        "grep": "error|timeout|timed out|5[0-9][0-9]|inventario",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-g5h6i",
+        "container": "api",
+        "previous": false,
+        "tail": 500,
+        "grep": "error|timeout|timed out|5[0-9][0-9]|inventario",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-j7k8l",
+        "container": "api",
+        "previous": false,
+        "tail": 500,
+        "grep": "error|timeout|timed out|5[0-9][0-9]|inventario",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "upstream_timeout_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "object": "inventario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "container": "inventario",
+        "previous": false,
+        "tail": 500,
+        "grep": "error|timeout|slow|latency|thrott|5[0-9][0-9]",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-p1q2r",
+        "container": "inventario",
+        "previous": false,
+        "tail": 500,
+        "grep": "error|timeout|slow|latency|thrott|5[0-9][0-9]",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-s3t4u",
+        "container": "inventario",
+        "previous": false,
+        "tail": 500,
+        "grep": "error|timeout|slow|latency|thrott|5[0-9][0-9]",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-v5w6x",
+        "container": "inventario",
+        "previous": false,
+        "tail": 500,
+        "grep": "error|timeout|slow|latency|thrott|5[0-9][0-9]",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda",
+          "container": "inventario"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "node_cpu_allocatable_free_cores",
+        "labels": {}
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes-7b6c5d4e3"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda",
+          "pod": "api-ordenes-8c7d6e5f4-a1b2c"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "object": "horizontalpodautoscaler/inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "hpa/tienda/inventario",
+          "summary": "El HPA de inventario está limitado a 4 réplicas pese a que la carga de la campaña duplicó el tráfico y requiere 9; los pods alcanzan el límite de CPU, acumulan cola y responden con latencias superiores al timeout de api-ordenes. Los 5xx son 503 generados por api-ordenes al expirar llamadas a inventario, no fallos ni reinicios de api-ordenes.",
+          "evidence": [
+            "Warning FailedComputeMetricsReplicas horizontalpodautoscaler/inventario: \"desired replicas 9 exceeds maxReplicas 4 — capped (x38)\"",
+            "HPA inventario: \"resource cpu on pods (as a percentage of request): 190% (950m) / 70%\" y condición \"ScalingLimited True TooManyReplicas\"",
+            "Métrica de inventario: \"container_cpu_cfs_throttled_periods_ratio ... 2026-09-02T03:14:00Z 0.81\"",
+            "Log de inventario: \"WARN request queue depth=9418 (worker threads=8 all busy) cpu throttled\"",
+            "Log de inventario: \"GET /stock/7271 200 1790ms (slow: cpu throttled)\"",
+            "Log de api-ordenes: \"ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client\"",
+            "Métrica: \"upstream_timeout_total_rate5m{namespace=\\\"tienda\\\", service=\\\"api-ordenes\\\", upstream=\\\"inventario\\\"} ... 2026-09-02T03:14:00Z 18.9\"",
+            "Métrica de tráfico de inventario: \"2026-09-02T02:10:00Z 150\" y \"2026-09-02T03:14:00Z 312\"; el pool aún reporta \"node_cpu_allocatable_free_cores ... 5.1\""
+          ]
+        },
+        "actions": [
+          {
+            "action": "update_hpa",
+            "target": "hpa/tienda/inventario",
+            "params": {
+              "maxReplicas": 9
+            },
+            "reason": "Permitir que el HPA alcance inmediatamente las 9 réplicas que ya calcula necesarias. Es la intervención mínima sobre el componente saturado; hay CPU asignable suficiente para las 5 réplicas adicionales y no se reinicia api-ordenes, que es la víctima."
+          }
+        ],
+        "confidence": 0.97
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 5,
+  "submission": {
+    "root_cause": {
+      "component": "hpa/tienda/inventario",
+      "summary": "El HPA de inventario está limitado a 4 réplicas pese a que la carga de la campaña duplicó el tráfico y requiere 9; los pods alcanzan el límite de CPU, acumulan cola y responden con latencias superiores al timeout de api-ordenes. Los 5xx son 503 generados por api-ordenes al expirar llamadas a inventario, no fallos ni reinicios de api-ordenes.",
+      "evidence": [
+        "Warning FailedComputeMetricsReplicas horizontalpodautoscaler/inventario: \"desired replicas 9 exceeds maxReplicas 4 — capped (x38)\"",
+        "HPA inventario: \"resource cpu on pods (as a percentage of request): 190% (950m) / 70%\" y condición \"ScalingLimited True TooManyReplicas\"",
+        "Métrica de inventario: \"container_cpu_cfs_throttled_periods_ratio ... 2026-09-02T03:14:00Z 0.81\"",
+        "Log de inventario: \"WARN request queue depth=9418 (worker threads=8 all busy) cpu throttled\"",
+        "Log de inventario: \"GET /stock/7271 200 1790ms (slow: cpu throttled)\"",
+        "Log de api-ordenes: \"ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client\"",
+        "Métrica: \"upstream_timeout_total_rate5m{namespace=\\\"tienda\\\", service=\\\"api-ordenes\\\", upstream=\\\"inventario\\\"} ... 2026-09-02T03:14:00Z 18.9\"",
+        "Métrica de tráfico de inventario: \"2026-09-02T02:10:00Z 150\" y \"2026-09-02T03:14:00Z 312\"; el pool aún reporta \"node_cpu_allocatable_free_cores ... 5.1\""
+      ]
+    },
+    "actions": [
+      {
+        "action": "update_hpa",
+        "target": "hpa/tienda/inventario",
+        "params": {
+          "maxReplicas": 9
+        },
+        "reason": "Permitir que el HPA alcance inmediatamente las 9 réplicas que ya calcula necesarias. Es la intervención mínima sobre el componente saturado; hay CPU asignable suficiente para las 5 réplicas adicionales y no se reinicia api-ordenes, que es la víctima."
+      }
+    ],
+    "confidence": 0.97
+  },
+  "usage": {
+    "input": 35052,
+    "output": 2694,
+    "total": 37746
+  },
+  "costUsd": 0.062290399999999996,
+  "costSource": "gateway",
+  "latencyMs": 35590,
+  "score": {
+    "total": 48,
+    "rootCause": 10,
+    "actions": 27,
+    "efficiency": 1,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 29 tool calls vs presupuesto 10 → 1/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/tienda/api-ordenes\", entregado \"hpa/tienda/inventario\" → 0/20",
+      "Palabras clave: 3/6 (maxReplicas, inventario, timeout) → 10/20",
+      "Acciones: F1 0.67 contra [update_hpa→hpa/tienda/inventario, rollback_deployment→deployment/tienda/api-ordenes] → 27/40"
+    ]
+  },
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "f3dfd2bc"
+}

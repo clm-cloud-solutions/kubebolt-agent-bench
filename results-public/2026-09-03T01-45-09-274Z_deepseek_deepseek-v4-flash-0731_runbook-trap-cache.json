@@ -1,0 +1,249 @@
+{
+  "id": "e4878269-336a-47be-ad37-ead6a44d6c86",
+  "timestamp": "2026-09-03T01:45:09.274Z",
+  "model": {
+    "id": "deepseek/deepseek-v4-flash-0731",
+    "label": "DeepSeek V4 Flash (0731)",
+    "vendor": "DeepSeek",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "runbook-trap-cache",
+  "scenarioTitle": "catalogo-api con 3 % de aciertos de caché: el runbook culpa a redis",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "statefulset",
+        "namespace": "catalogo",
+        "name": "redis-catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "catalogo",
+        "name": "catalogo-api-8c7b6a5f4"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_memory_working_set_bytes",
+        "labels": {
+          "namespace": "catalogo",
+          "pod": "redis-catalogo-0"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "catalogo-api-9d8c7b6a5-q1w2e",
+        "grep": "error|warn|evict|frag|redis|timeout",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_mem_fragmentation_ratio",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_evicted_keys_total",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "cache_hit_ratio",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_keys_total",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/catalogo/catalogo-api",
+          "summary": "El rollout de catalogo-api a la revisión 31 (imagen 5.4.0) cambió CACHE_KEY_TEMPLATE a cat:v4:{{request_id}}:producto:{{id}}, generando una clave de caché única por request. Esto hace imposible el cache hit (hit ratio 92%→3%), dispara el número de claves en Redis (48k→1.8M), degrada p95 a 1.9s y multiplica ×5 la carga en Postgres. Redis no es la causa: fragmentación 1.5 y 0 evictions; es víctima. Reiniciar Redis no restauraría los hits.",
+          "evidence": [
+            "deployment/catalogo-api: NewReplicaSet catalogo-api-9d8c7b6a5 (rev 31, image 5.4.0) con CACHE_KEY_TEMPLATE=cat:v4:{{request_id}}:producto:{{id}}; OldReplicaSet catalogo-api-8c7b6a5f4 (rev 30, image 5.3.1) con CACHE_KEY_TEMPLATE=cat:v3:producto:{{id}}",
+            "Evento: ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3 (hace 22m, coincide con el inicio de la alerta)",
+            "log catalogo-api: WARN cache key template contains {{request_id}}: keys will be unique per request",
+            "log catalogo-api: GET /productos/361 200 725ms cache=miss key=cat:v4:req-4d4b08:producto:9950 pg=18ms (idéntico patrón para todas las peticiones)",
+            "cache_hit_ratio 0.92 (02:30) → 0.12 (02:55) → 0.03 (03:00/03:14)",
+            "redis_keys_total 48210 (02:30) → 310442 (02:55) → 1846211 (03:14)",
+            "redis_mem_fragmentation_ratio 1.48→1.61; redis_evicted_keys_total 0 (Redis descartado como causa raíz)"
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/catalogo/catalogo-api",
+            "params": {
+              "toRevision": 30
+            },
+            "reason": "Revertir al template de clave cacheable cat:v3:producto:{{id}} de la imagen 5.3.1; restaura el hit ratio y elimina la carga ×5 en Postgres. Las claves v4 residuales expiran por su TTL de 600s; no requiere tocar Redis."
+          }
+        ],
+        "confidence": 0.95
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 5,
+  "submission": {
+    "root_cause": {
+      "component": "deployment/catalogo/catalogo-api",
+      "summary": "El rollout de catalogo-api a la revisión 31 (imagen 5.4.0) cambió CACHE_KEY_TEMPLATE a cat:v4:{{request_id}}:producto:{{id}}, generando una clave de caché única por request. Esto hace imposible el cache hit (hit ratio 92%→3%), dispara el número de claves en Redis (48k→1.8M), degrada p95 a 1.9s y multiplica ×5 la carga en Postgres. Redis no es la causa: fragmentación 1.5 y 0 evictions; es víctima. Reiniciar Redis no restauraría los hits.",
+      "evidence": [
+        "deployment/catalogo-api: NewReplicaSet catalogo-api-9d8c7b6a5 (rev 31, image 5.4.0) con CACHE_KEY_TEMPLATE=cat:v4:{{request_id}}:producto:{{id}}; OldReplicaSet catalogo-api-8c7b6a5f4 (rev 30, image 5.3.1) con CACHE_KEY_TEMPLATE=cat:v3:producto:{{id}}",
+        "Evento: ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3 (hace 22m, coincide con el inicio de la alerta)",
+        "log catalogo-api: WARN cache key template contains {{request_id}}: keys will be unique per request",
+        "log catalogo-api: GET /productos/361 200 725ms cache=miss key=cat:v4:req-4d4b08:producto:9950 pg=18ms (idéntico patrón para todas las peticiones)",
+        "cache_hit_ratio 0.92 (02:30) → 0.12 (02:55) → 0.03 (03:00/03:14)",
+        "redis_keys_total 48210 (02:30) → 310442 (02:55) → 1846211 (03:14)",
+        "redis_mem_fragmentation_ratio 1.48→1.61; redis_evicted_keys_total 0 (Redis descartado como causa raíz)"
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/catalogo/catalogo-api",
+        "params": {
+          "toRevision": 30
+        },
+        "reason": "Revertir al template de clave cacheable cat:v3:producto:{{id}} de la imagen 5.3.1; restaura el hit ratio y elimina la carga ×5 en Postgres. Las claves v4 residuales expiran por su TTL de 600s; no requiere tocar Redis."
+      }
+    ],
+    "confidence": 0.95
+  },
+  "usage": {
+    "input": 25335,
+    "output": 4487,
+    "total": 29822
+  },
+  "costUsd": 0.00407652,
+  "costSource": "gateway",
+  "latencyMs": 47571,
+  "score": {
+    "total": 95,
+    "rootCause": 37,
+    "actions": 40,
+    "efficiency": 8,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 12 tool calls vs presupuesto 8 → 8/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/catalogo/catalogo-api\", entregado \"deployment/catalogo/catalogo-api\" → 20/20",
+      "Palabras clave: 5/6 (CACHE_KEY_TEMPLATE, request_id, 31, miss, evict) → 17/20",
+      "Acciones: F1 1.00 contra [rollback_deployment→deployment/catalogo/catalogo-api] → 40/40"
+    ]
+  },
+  "finalText": "All the evidence is in. Let me summarize the findings:\n\n**Timeline (matches the alert):**\n- `22m` ago: deployment `catalogo-api` scaled to revision 31 (image `5.4.0`) — exactly when the alert began (~20 min).\n- Old revision 30 (`5.3.1`): `CACHE_KEY_TEMPLATE=cat:v3:producto:{{id}}` → **cacheable**.\n- New revision 31 (`5.4.0`): `CACHE_KEY_TEMPLATE=cat:v4:{{request_id}}:producto:{{id}}` → **unique per request**.\n\n**Evidence from logs/metrics:**\n- App itself warns: `cache key template contains {{request_id}}: keys will be unique per request`\n- Every producto request: `cache=miss key=cat:v4:req-...:producto:... pg=...` — nothing can ever be a hit.\n- `cache_hit_ratio` collapsed from 0.92/0.91 → 0.12 → **0.03** right after rollout.\n- `redis_keys_total` exploded: 48k → 310k → **1.8M** in ~25 min (TTL 600s can't keep up).\n- `redis_mem_fragmentation_ratio` only 1.48→1.61, **0 evictions** → Redis is the *victim*, not the culprit. Restarting it would not restore hits and would add a cold-cache storm.\n\nRoot cause is a code/config regression shipped in image 5.4.0, fixed by rolling back to revision 30. Redis restart (runbook) would be a symptom fix and cause further cold-cache hammering of Postgres",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "5e27823b"
+}

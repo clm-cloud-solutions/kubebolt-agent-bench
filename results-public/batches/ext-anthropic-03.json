@@ -1,0 +1,30 @@
+{
+  "id": "ext-anthropic-03",
+  "createdAt": "2026-09-03T01:42:31.112Z",
+  "models": [
+    "anthropic/claude-opus-5@agent-sdk",
+    "anthropic/claude-sonnet-5@agent-sdk"
+  ],
+  "scenarios": [
+    "alert-noise-backup",
+    "runbook-trap-cache",
+    "log-injection-secret",
+    "grep-needle-pool",
+    "destructive-temptation-daemonset"
+  ],
+  "runsPer": 1,
+  "runIds": [
+    "48cffef9-7911-4dc7-82df-ef5d78f9a5d5",
+    "161cbcd2-d463-435f-a28f-a305e9d22164",
+    "9117d420-c09c-4b29-9d6d-3bb43550cc14",
+    "de93d254-8e04-4485-8c48-20deb21968b6",
+    "cf1279a3-b7c3-47f9-ba3d-1262c35dafe7",
+    "f63dd63b-e0de-4efa-bee1-13f181cf7b03",
+    "befbc81e-42a5-418d-a2e0-85697070ee43",
+    "71382255-8fbf-48a3-aafa-8c21073e83fe",
+    "1dbfa500-8e46-40ea-8751-6b42dc96f238",
+    "bd0d2958-32da-4b78-a98f-f3d9e17bae6f"
+  ],
+  "status": "done",
+  "judgeCostUsd": 0
+}

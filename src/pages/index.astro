@@ -1,0 +1,202 @@
+---
+import Base from '@/layouts/Base.astro';
+import { MODELS } from '@/lib/harness/models';
+import { SCENARIOS } from '@/scenarios';
+import { READONLY } from '@/lib/harness/readonly';
+
+if (READONLY) return Astro.redirect('/resultados', 302);
+
+const modelsJson = MODELS.map((m) => ({ id: m.id, label: m.label, vendor: m.vendor, family: m.family }));
+---
+
+<Base title="Ejecutar" description="Elige modelos y escenarios, lanza el lote y sigue el progreso">
+  <div class="page-head">
+    <div>
+      <h1>Qué modelos, sobre qué incidentes</h1>
+      <p>
+        Cada combinación corre con la misma alerta, el mismo snapshot y el mismo catálogo. Al terminar, cada run
+        recibe su puntuación determinista y, si eliges un juez, una evaluación ciega en seis dimensiones.
+      </p>
+    </div>
+  </div>
+
+  <div class="picker">
+    <div class="pick-list" id="models">
+      <div class="pick-head">
+        <span>Modelos</span>
+        <span><button type="button" data-all="models">todos</button> · <button type="button" data-none="models">ninguno</button></span>
+      </div>
+      {MODELS.map((m, i) => (
+        <label class="pick">
+          <input type="checkbox" name="model" value={m.id} checked={i < 2} />
+          <span class="name">
+            {m.label}
+            <span class="sub mono">{m.id}</span>
+          </span>
+          <span class="tag">{m.family}</span>
+        </label>
+      ))}
+    </div>
+
+    <div class="pick-list" id="scenarios">
+      <div class="pick-head">
+        <span>Escenarios</span>
+        <span><button type="button" data-all="scenarios">todos</button> · <button type="button" data-none="scenarios">ninguno</button></span>
+      </div>
+      {SCENARIOS.map((s) => (
+        <label class="pick">
+          <input type="checkbox" name="scenario" value={s.id} checked />
+          <span class="name">
+            {s.title}
+            <span class="sub mono">{s.id}</span>
+          </span>
+          <span class="tag">{s.difficulty}</span>
+        </label>
+      ))}
+    </div>
+  </div>
+
+  <div class="launch">
+    <label class="field">
+      <span>Repeticiones por combinación</span>
+      <input type="number" id="runsPer" value="1" min="1" max="10" style="min-width:90px" />
+    </label>
+    <label class="field">
+      <span>Juez de calidad</span>
+      <select id="judge">
+        <option value="">Sin juez (solo métricas deterministas)</option>
+        {MODELS.map((m) => (
+          <option value={m.id}>{m.label}</option>
+        ))}
+      </select>
+    </label>
+    <label class="field">
+      <span>Concurrencia</span>
+      <input type="number" id="concurrency" value="3" min="1" max="8" style="min-width:90px" />
+    </label>
+    <div class="summary" id="summary"></div>
+    <button class="btn" id="launch">Lanzar lote</button>
+  </div>
+  <div class="warn" id="judge-warn" hidden>
+    El juez también compite en este lote. Los modelos tienden a puntuar mejor sus propias respuestas; toma su
+    columna de calidad con cautela o elige un juez que no esté en la lista.
+  </div>
+
+  <section class="progress" id="progress" hidden>
+    <div class="section-head">
+      <h2>Progreso</h2>
+      <span class="hint" id="progress-text"></span>
+    </div>
+    <div class="progress-bar"><b id="bar"></b></div>
+    <div class="jobs" id="jobs"></div>
+    <p class="note" style="margin-top:14px" id="batch-link"></p>
+  </section>
+
+  <script define:vars={{ modelsJson }}>
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => [...document.querySelectorAll(s)];
+    const labelOf = Object.fromEntries(modelsJson.map((m) => [m.id, m.label]));
+
+    const selected = (name) => $$(`input[name="${name}"]:checked`).map((i) => i.value);
+    function refresh() {
+      const m = selected('model').length;
+      const s = selected('scenario').length;
+      const r = Number($('#runsPer').value) || 1;
+      const judge = $('#judge').value;
+      $('#summary').innerHTML = `<b>${m}</b> modelos × <b>${s}</b> escenarios × <b>${r}</b> = <b>${m * s * r}</b> runs${judge ? ` + ${m * s * r} evaluaciones del juez` : ''}`;
+      $('#judge-warn').hidden = !(judge && selected('model').includes(judge));
+      $('#launch').disabled = !m || !s;
+    }
+    document.addEventListener('change', refresh);
+    document.addEventListener('input', refresh);
+    $$('[data-all]').forEach((b) => b.addEventListener('click', () => { $$(`#${b.dataset.all} input`).forEach((i) => (i.checked = true)); refresh(); }));
+    $$('[data-none]').forEach((b) => b.addEventListener('click', () => { $$(`#${b.dataset.none} input`).forEach((i) => (i.checked = false)); refresh(); }));
+    refresh();
+
+    const jobs = $('#jobs');
+    const rows = new Map();
+    function row(index, model, scenario) {
+      let el = rows.get(index);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'job';
+        el.innerHTML = `<span>${labelOf[model] ?? model}</span><span class="mono">${scenario}</span><span class="num" data-det>—</span><span class="num" data-q>—</span><span class="st">en cola</span>`;
+        jobs.appendChild(el);
+        rows.set(index, el);
+      }
+      return el;
+    }
+    // Mensaje íntegro bajo la fila. textContent: el error viene del gateway y no se interpreta como HTML.
+    function showError(el, msg) {
+      const p = document.createElement('p');
+      p.className = 'err';
+      p.textContent = msg;
+      el.appendChild(p);
+    }
+
+    $('#launch').addEventListener('click', async () => {
+      const models = selected('model');
+      const scenarios = selected('scenario');
+      const runsPer = Number($('#runsPer').value) || 1;
+      const judge = $('#judge').value || undefined;
+      const concurrency = Number($('#concurrency').value) || 3;
+      $('#launch').disabled = true;
+      $('#progress').hidden = false;
+      jobs.innerHTML = '';
+      rows.clear();
+      $('#batch-link').textContent = '';
+      let total = 0, done = 0, batchId = '';
+      const bar = $('#bar');
+      const txt = $('#progress-text');
+      txt.textContent = 'Arrancando';
+
+      try {
+        const res = await fetch('/api/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ models, scenarios, runsPer, judge, concurrency }) });
+        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { value, done: eof } = await reader.read();
+          if (eof) break;
+          buf += dec.decode(value, { stream: true });
+          let i;
+          while ((i = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, i).trim();
+            buf = buf.slice(i + 1);
+            if (!line) continue;
+            const ev = JSON.parse(line);
+            if (ev.type === 'batch_start') { total = ev.total; batchId = ev.id; txt.textContent = `0 / ${total}`; }
+            if (ev.type === 'run_start') { const el = row(ev.index, ev.model, ev.scenario); el.className = 'job running'; el.querySelector('.st').textContent = 'investigando'; }
+            if (ev.type === 'run_done') {
+              const r = ev.result;
+              const el = row(ev.index, r.model.id, r.scenarioId);
+              el.className = r.ok ? 'job done' : 'job failed';
+              el.querySelector('[data-det]').textContent = r.score.total;
+              if (r.ok) el.querySelector('.st').textContent = judge ? 'juzgando' : `${(r.latencyMs / 1000).toFixed(0)}s`;
+              else { el.querySelector('.st').textContent = 'error'; showError(el, r.error || 'error desconocido'); }
+              done++; bar.style.width = `${(done / total) * 100}%`; txt.textContent = `${done} / ${total}`;
+            }
+            if (ev.type === 'judge_done') {
+              const el = rows.get(ev.index);
+              if (el) {
+                el.querySelector('[data-q]').textContent = ev.quality.error ? 'n/d' : ev.quality.overall;
+                if (!el.classList.contains('failed')) el.querySelector('.st').textContent = 'listo';
+                if (ev.quality.error) showError(el, `juez: ${ev.quality.error}`);
+              }
+            }
+            if (ev.type === 'error') { txt.textContent = `Error: ${ev.message}`; }
+            if (ev.type === 'batch_done') {
+              txt.textContent = `${done} / ${total} · terminado`;
+              $('#batch-link').innerHTML = `Lote guardado. <a href="/lotes/${ev.id}" style="color:var(--green);font-weight:500">Ver la comparación completa</a>`;
+            }
+          }
+        }
+      } catch (err) {
+        txt.textContent = `Falló: ${err.message}`;
+      } finally {
+        $('#launch').disabled = false;
+      }
+    });
+  </script>
+</Base>

@@ -1,0 +1,339 @@
+{
+  "id": "9464f7ba-b63a-4864-966a-95a1b6ce69cf",
+  "timestamp": "2026-09-03T01:41:13.666Z",
+  "model": {
+    "id": "openai/gpt-5.6-luna",
+    "label": "GPT-5.6 Luna",
+    "vendor": "OpenAI",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "runbook-trap-cache",
+  "scenarioTitle": "catalogo-api con 3 % de aciertos de caché: el runbook culpa a redis",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "object": "redis"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_memory_working_set_bytes",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "kube_pod_container_status_restarts_total",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_request_duration_seconds_p99",
+        "labels": {
+          "namespace": "catalogo",
+          "service": "catalogo-api"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "cache_hit_ratio",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_memory_used_bytes",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_mem_fragmentation_ratio",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_evicted_keys_total",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_commands_duration_seconds_p99",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "pg_active_connections",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 2
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "statefulset",
+        "namespace": "catalogo",
+        "name": "redis-catalogo"
+      },
+      "ok": true,
+      "ms": 2
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "catalogo-api-9d8c7b6a5-q1w2e",
+        "container": "",
+        "previous": false,
+        "tail": 200,
+        "grep": "cache|redis|error|warn|miss",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 2
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "redis-catalogo-0",
+        "container": "",
+        "previous": false,
+        "tail": 200,
+        "grep": "error|warning|memory|evict|oom|fragment",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "object": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "catalogo",
+        "name": "catalogo-api-8c7b6a5f4"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_commands_duration_seconds_p99",
+        "labels": {
+          "namespace": "catalogo",
+          "pod": "redis-catalogo-0"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/catalogo/catalogo-api",
+          "summary": "La revisión 31 desplegada hace ~22 minutos cambió la clave de caché de `cat:v3:producto:{{id}}` a `cat:v4:{{request_id}}:producto:{{id}}`; al incluir un request_id único, las lecturas de productos prácticamente nunca reutilizan entradas existentes. No es fragmentación de Redis: Redis responde en 1 ms, no evacúa claves y el aumento de memoria es consecuencia del llenado con claves únicas.",
+          "evidence": [
+            "Deployment revision 31: `Image: acrclm.azurecr.io/catalogo/api:5.4.0` y `CACHE_KEY_TEMPLATE: cat:v4:{{request_id}}:producto:{{id}}`.",
+            "ReplicaSet anterior revision 30: `Image: acrclm.azurecr.io/catalogo/api:5.3.1` y `CACHE_KEY_TEMPLATE: cat:v3:producto:{{id}}`.",
+            "Evento literal: `22m Normal ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3`; `20m Normal ScalingReplicaSet deployment/catalogo-api Scaled down replica set catalogo-api-8c7b6a5f4 to 0`.",
+            "Métrica literal: `cache_hit_ratio{namespace=\"catalogo\", service=\"catalogo-api\"}` pasó de `0.91` a las `02:50:00Z` a `0.12` a las `02:55:00Z` y `0.03` a las `03:00:00Z`/`03:14:00Z`.",
+            "Logs literales del API: `GET /productos/8791 ... cache=miss key=cat:v4:req-a9c73a:producto:7480` y `GET /productos/2261 ... cache=miss key=cat:v4:req-2d9d52:producto:5132`; también `redis SET ... ttl=600 ok 1ms`.",
+            "Métricas literales de Redis: `redis_mem_fragmentation_ratio ... 1.61`, `redis_evicted_keys_total ... 0` y `redis_commands_duration_seconds_p99 ... 0.001`.",
+            "Log literal de Redis: `used_memory_human:1.56G maxmemory_human:2.00G mem_fragmentation_ratio:1.61 evicted_keys:0 keyspace_hits:402 keyspace_misses:13808`."
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/catalogo/catalogo-api",
+            "reason": "Restaurar la revisión 30, cuya plantilla de clave no contiene request_id y coincide con el comportamiento normal previo; evita reiniciar Redis, que no presenta la causa."
+          }
+        ],
+        "confidence": 0.99
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 5,
+  "submission": {
+    "root_cause": {
+      "component": "deployment/catalogo/catalogo-api",
+      "summary": "La revisión 31 desplegada hace ~22 minutos cambió la clave de caché de `cat:v3:producto:{{id}}` a `cat:v4:{{request_id}}:producto:{{id}}`; al incluir un request_id único, las lecturas de productos prácticamente nunca reutilizan entradas existentes. No es fragmentación de Redis: Redis responde en 1 ms, no evacúa claves y el aumento de memoria es consecuencia del llenado con claves únicas.",
+      "evidence": [
+        "Deployment revision 31: `Image: acrclm.azurecr.io/catalogo/api:5.4.0` y `CACHE_KEY_TEMPLATE: cat:v4:{{request_id}}:producto:{{id}}`.",
+        "ReplicaSet anterior revision 30: `Image: acrclm.azurecr.io/catalogo/api:5.3.1` y `CACHE_KEY_TEMPLATE: cat:v3:producto:{{id}}`.",
+        "Evento literal: `22m Normal ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3`; `20m Normal ScalingReplicaSet deployment/catalogo-api Scaled down replica set catalogo-api-8c7b6a5f4 to 0`.",
+        "Métrica literal: `cache_hit_ratio{namespace=\"catalogo\", service=\"catalogo-api\"}` pasó de `0.91` a las `02:50:00Z` a `0.12` a las `02:55:00Z` y `0.03` a las `03:00:00Z`/`03:14:00Z`.",
+        "Logs literales del API: `GET /productos/8791 ... cache=miss key=cat:v4:req-a9c73a:producto:7480` y `GET /productos/2261 ... cache=miss key=cat:v4:req-2d9d52:producto:5132`; también `redis SET ... ttl=600 ok 1ms`.",
+        "Métricas literales de Redis: `redis_mem_fragmentation_ratio ... 1.61`, `redis_evicted_keys_total ... 0` y `redis_commands_duration_seconds_p99 ... 0.001`.",
+        "Log literal de Redis: `used_memory_human:1.56G maxmemory_human:2.00G mem_fragmentation_ratio:1.61 evicted_keys:0 keyspace_hits:402 keyspace_misses:13808`."
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/catalogo/catalogo-api",
+        "reason": "Restaurar la revisión 30, cuya plantilla de clave no contiene request_id y coincide con el comportamiento normal previo; evita reiniciar Redis, que no presenta la causa."
+      }
+    ],
+    "confidence": 0.99
+  },
+  "usage": {
+    "input": 20811,
+    "output": 1681,
+    "total": 22492
+  },
+  "costUsd": 0.0037974899999999997,
+  "costSource": "gateway",
+  "latencyMs": 20633,
+  "score": {
+    "total": 93,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 3,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 19 tool calls vs presupuesto 8 → 3/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/catalogo/catalogo-api\", entregado \"deployment/catalogo/catalogo-api\" → 20/20",
+      "Palabras clave: 6/6 (CACHE_KEY_TEMPLATE, request_id, revision, 31, miss, evict) → 20/20",
+      "Acciones: F1 1.00 contra [rollback_deployment→deployment/catalogo/catalogo-api] → 40/40"
+    ]
+  },
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "5e27823b"
+}

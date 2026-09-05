@@ -1,0 +1,295 @@
+{
+  "id": "c8894a50-b638-4eb7-96d4-66f6f6be52e9",
+  "timestamp": "2026-09-05T15:55:07.827Z",
+  "model": {
+    "id": "moonshotai/kimi-k3",
+    "label": "Kimi K3",
+    "vendor": "Moonshot",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "hpa-maxed",
+  "scenarioTitle": "api-busqueda: p99 x8, HPA saturado en maxReplicas",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "hpa",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "container_cpu_usage_seconds_total",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "container_memory_working_set_bytes",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_request_duration_seconds_p99",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "deployment",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "deployment",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_request_duration_seconds_p99",
+        "labels": {
+          "service": "opensearch"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda",
+        "pod": "api-busqueda-4d5e6f7a8-b1cde",
+        "tail": 100,
+        "grep": "error|timeout|slow|warn"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "node_cpu_allocatable_free_cores"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "kube_horizontalpodautoscaler_status_desired_replicas",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda",
+        "pod": "opensearch-0",
+        "tail": 50,
+        "grep": "error|timeout|slow|warn|rejected"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "hpa/busqueda/api-busqueda",
+          "summary": "Pico de tráfico ~3x (410→1305 req/s) agotó la capacidad del api-busqueda: el HPA alcanzó su techo de maxReplicas=6 (desired > máximo, CPU al 187% del request) y los pods, limitados a 1 CPU, sufren 78% de throttling CFS, saturando sus 8 worker threads y encolando peticiones (queue depth=212), lo que eleva el p99 a 4.1s. El backend OpenSearch está sano; el cuello de botella es CPU del tier API.",
+          "evidence": [
+            "http_requests_total_rate5m{service=\"api-busqueda\"}: 410 req/s (02:20) → 1305 req/s (03:14)",
+            "http_request_duration_seconds_p99{service=\"api-busqueda\"}: 0.31s (02:20) → 4.1s (03:14)",
+            "HPA api-busqueda: 'resource cpu on pods: 187% (935m) / 70%', 'Deployment pods: 6 current / 6 desired', ScalingLimited=True 'TooManyReplicas: the desired replica count is more than the maximum replica count'",
+            "container_cpu_cfs_throttled_periods_ratio{pod=\"api-busqueda-4d5e6f7a8-b1cde\",container=\"api\"}: 0.02 → 0.78",
+            "Deployment api-busqueda: Requests cpu: 500m, Limits cpu: 1",
+            "Log api-busqueda: 'WARN request queue depth=212 (worker threads=8 all busy)'",
+            "node_cpu_allocatable_free_cores{nodepool=\"aks-userpool-99887766-vmss\"}: 6.4 cores libres (autoscaler 3-8 nodos, 4 actuales)",
+            "opensearch-0: 0 líneas de error/timeout/slow/warn en logs recientes"
+          ]
+        },
+        "actions": [
+          {
+            "action": "update_hpa",
+            "target": "hpa/busqueda/api-busqueda",
+            "params": {
+              "maxReplicas": 12
+            },
+            "reason": "El HPA está limitado (ScalingLimited: TooManyReplicas) con utilización 187% vs target 70%; necesita >6 réplicas. Subir maxReplicas a 12 permite el scale-out inmediato. Hay 6.4 cores libres y autoscaler hasta 8 nodos (6 pods extra × 500m request = 3 cores), por lo que es programable."
+          },
+          {
+            "action": "patch_resources",
+            "target": "deployment/busqueda/api-busqueda",
+            "params": {
+              "container": "api",
+              "cpu_limit": "2"
+            },
+            "reason": "Los pods sufren 78% de throttling CFS con limit=1 CPU, lo que satura los 8 worker threads y encola peticiones (queue depth=212). Duplicar el límite a 2 CPU elimina el throttling y permite drenar la cola; el request (500m) se mantiene para no alterar el cálculo del HPA."
+          }
+        ],
+        "confidence": 0.9
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 5,
+  "submission": {
+    "root_cause": {
+      "component": "hpa/busqueda/api-busqueda",
+      "summary": "Pico de tráfico ~3x (410→1305 req/s) agotó la capacidad del api-busqueda: el HPA alcanzó su techo de maxReplicas=6 (desired > máximo, CPU al 187% del request) y los pods, limitados a 1 CPU, sufren 78% de throttling CFS, saturando sus 8 worker threads y encolando peticiones (queue depth=212), lo que eleva el p99 a 4.1s. El backend OpenSearch está sano; el cuello de botella es CPU del tier API.",
+      "evidence": [
+        "http_requests_total_rate5m{service=\"api-busqueda\"}: 410 req/s (02:20) → 1305 req/s (03:14)",
+        "http_request_duration_seconds_p99{service=\"api-busqueda\"}: 0.31s (02:20) → 4.1s (03:14)",
+        "HPA api-busqueda: 'resource cpu on pods: 187% (935m) / 70%', 'Deployment pods: 6 current / 6 desired', ScalingLimited=True 'TooManyReplicas: the desired replica count is more than the maximum replica count'",
+        "container_cpu_cfs_throttled_periods_ratio{pod=\"api-busqueda-4d5e6f7a8-b1cde\",container=\"api\"}: 0.02 → 0.78",
+        "Deployment api-busqueda: Requests cpu: 500m, Limits cpu: 1",
+        "Log api-busqueda: 'WARN request queue depth=212 (worker threads=8 all busy)'",
+        "node_cpu_allocatable_free_cores{nodepool=\"aks-userpool-99887766-vmss\"}: 6.4 cores libres (autoscaler 3-8 nodos, 4 actuales)",
+        "opensearch-0: 0 líneas de error/timeout/slow/warn en logs recientes"
+      ]
+    },
+    "actions": [
+      {
+        "action": "update_hpa",
+        "target": "hpa/busqueda/api-busqueda",
+        "params": {
+          "maxReplicas": 12
+        },
+        "reason": "El HPA está limitado (ScalingLimited: TooManyReplicas) con utilización 187% vs target 70%; necesita >6 réplicas. Subir maxReplicas a 12 permite el scale-out inmediato. Hay 6.4 cores libres y autoscaler hasta 8 nodos (6 pods extra × 500m request = 3 cores), por lo que es programable."
+      },
+      {
+        "action": "patch_resources",
+        "target": "deployment/busqueda/api-busqueda",
+        "params": {
+          "container": "api",
+          "cpu_limit": "2"
+        },
+        "reason": "Los pods sufren 78% de throttling CFS con limit=1 CPU, lo que satura los 8 worker threads y encola peticiones (queue depth=212). Duplicar el límite a 2 CPU elimina el throttling y permite drenar la cola; el request (500m) se mantiene para no alterar el cálculo del HPA."
+      }
+    ],
+    "confidence": 0.9
+  },
+  "usage": {
+    "input": 25772,
+    "output": 6783,
+    "total": 32555
+  },
+  "costUsd": 0.15545265000000003,
+  "costSource": "gateway",
+  "latencyMs": 90016,
+  "score": {
+    "total": 95,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 5,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 14 tool calls vs presupuesto 7 → 5/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"hpa/busqueda/api-busqueda\", entregado \"hpa/busqueda/api-busqueda\" → 20/20",
+      "Palabras clave: 6/6 (maxReplicas, HPA, throttl, CPU, tráfico, 6) → 20/20",
+      "Acciones: F1 1.00 contra [update_hpa→hpa/busqueda/api-busqueda, patch_resources→deployment/busqueda/api-busqueda] → 40/40"
+    ]
+  },
+  "finalText": "Tengo evidencia suficiente y consistente. Resumen del diagnóstico:\n\n**Causa raíz**: Un pico de tráfico ~3x (410→1305 req/s) superó la capacidad del `api-busqueda`. El HPA llegó a su techo (`maxReplicas=6`, desired > máximo) y los pods, con `limits.cpu=1`, sufren throttling severo (78% de períodos CFS throttled), lo que satura sus workers y encola peticiones (queue depth=212) → p99 de 4.1s. OpenSearch está sano (sin errores); el cuello de botella es CPU del tier API, no el backend. Hay 6.4 cores libres en el nodepool y el autoscaler puede llegar a 8 nodos, así que hay margen para escalar.\n\n**Plan**: (1) subir `maxReplicas` del HPA de 6→12 para permitir el scale-out que el HPA ya está pidiendo; (2) subir el `cpu_limit` del contenedor `api` de 1→2 para eliminar el throttling. Ambas acciones atacan la misma causa raíz (capacidad de CPU insuficiente) y son complementarias.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "e459980d"
+}

@@ -1,0 +1,261 @@
+{
+  "id": "c9365931-7415-47ce-af09-a8204b3a86bd",
+  "timestamp": "2026-09-05T15:51:05.801Z",
+  "model": {
+    "id": "openai/gpt-6-astra",
+    "label": "GPT-6 Astra",
+    "vendor": "OpenAI",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "hpa-maxed",
+  "scenarioTitle": "api-busqueda: p99 x8, HPA saturado en maxReplicas",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "hpa",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-mx"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "deployment",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda",
+        "pod": "api-busqueda-4d5e6f7a8-b1cde",
+        "container": "",
+        "previous": false,
+        "tail": 300,
+        "grep": "slow|latency|error|timeout|warn",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "container_cpu_usage_seconds_total",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda",
+        "object": ""
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "deployment",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "node_cpu_allocatable_free_cores"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_request_duration_seconds_p99",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "kube_horizontalpodautoscaler_status_desired_replicas",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "hpa/busqueda/api-busqueda",
+          "summary": "El máximo de 6 réplicas impide que api-busqueda absorba el aumento de tráfico de 410 a 1305 req/s. Las réplicas están saturadas de CPU, con throttling y colas de solicitudes; la latencia observada se acumula en la API, no en las llamadas a OpenSearch.",
+          "evidence": [
+            "Max replicas:                                          6",
+            "  resource cpu on pods  (as a percentage of request):  187% (935m) / 70%",
+            "  ScalingLimited  True    TooManyReplicas      the desired replica count is more than the maximum replica count",
+            "http_requests_total_rate5m{namespace=\"busqueda\", service=\"api-busqueda\"} [req/s]\n  2026-09-02T02:20:00Z  410\n  2026-09-02T02:35:00Z  890\n  2026-09-02T02:45:00Z  1210\n  2026-09-02T03:00:00Z  1290\n  2026-09-02T03:14:00Z  1305",
+            "container_cpu_cfs_throttled_periods_ratio{namespace=\"busqueda\", pod=\"api-busqueda-4d5e6f7a8-b1cde\", container=\"api\"} [ratio]\n  2026-09-02T02:20:00Z  0.02\n  2026-09-02T02:45:00Z  0.61\n  2026-09-02T03:14:00Z  0.78",
+            "2026-09-02T03:14:02Z WARN  request queue depth=212 (worker threads=8 all busy)",
+            "2026-09-02T03:14:01Z INFO  GET /buscar?q=chamarra 200 4102ms upstream=opensearch:97ms",
+            "node_cpu_allocatable_free_cores{nodepool=\"aks-userpool-99887766-vmss\"} [cores]\n  2026-09-02T03:14:00Z  6.4"
+          ]
+        },
+        "actions": [
+          {
+            "action": "update_hpa",
+            "target": "hpa/busqueda/api-busqueda",
+            "params": {
+              "maxReplicas": 18
+            },
+            "reason": "Liberar el escalado automático conservando minReplicas=2 y target CPU=70%. La lectura actual estima ceil(6×187/70)=17 réplicas; un máximo de 18 permite cubrir esa demanda con un pequeño margen. Doce réplicas adicionales requieren 6 cores de requests, frente a 6.4 cores libres reportados, y los eventos confirman que el autoscaler ha ampliado el nodepool. Validar tras el escalado que baja la cola y el throttling y que p99 vuelve a menos de 500 ms; no reiniciar la API ni OpenSearch."
+          }
+        ],
+        "confidence": 0.97
+      },
+      "ok": true,
+      "ms": 1
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 4,
+  "submission": {
+    "root_cause": {
+      "component": "hpa/busqueda/api-busqueda",
+      "summary": "El máximo de 6 réplicas impide que api-busqueda absorba el aumento de tráfico de 410 a 1305 req/s. Las réplicas están saturadas de CPU, con throttling y colas de solicitudes; la latencia observada se acumula en la API, no en las llamadas a OpenSearch.",
+      "evidence": [
+        "Max replicas:                                          6",
+        "  resource cpu on pods  (as a percentage of request):  187% (935m) / 70%",
+        "  ScalingLimited  True    TooManyReplicas      the desired replica count is more than the maximum replica count",
+        "http_requests_total_rate5m{namespace=\"busqueda\", service=\"api-busqueda\"} [req/s]\n  2026-09-02T02:20:00Z  410\n  2026-09-02T02:35:00Z  890\n  2026-09-02T02:45:00Z  1210\n  2026-09-02T03:00:00Z  1290\n  2026-09-02T03:14:00Z  1305",
+        "container_cpu_cfs_throttled_periods_ratio{namespace=\"busqueda\", pod=\"api-busqueda-4d5e6f7a8-b1cde\", container=\"api\"} [ratio]\n  2026-09-02T02:20:00Z  0.02\n  2026-09-02T02:45:00Z  0.61\n  2026-09-02T03:14:00Z  0.78",
+        "2026-09-02T03:14:02Z WARN  request queue depth=212 (worker threads=8 all busy)",
+        "2026-09-02T03:14:01Z INFO  GET /buscar?q=chamarra 200 4102ms upstream=opensearch:97ms",
+        "node_cpu_allocatable_free_cores{nodepool=\"aks-userpool-99887766-vmss\"} [cores]\n  2026-09-02T03:14:00Z  6.4"
+      ]
+    },
+    "actions": [
+      {
+        "action": "update_hpa",
+        "target": "hpa/busqueda/api-busqueda",
+        "params": {
+          "maxReplicas": 18
+        },
+        "reason": "Liberar el escalado automático conservando minReplicas=2 y target CPU=70%. La lectura actual estima ceil(6×187/70)=17 réplicas; un máximo de 18 permite cubrir esa demanda con un pequeño margen. Doce réplicas adicionales requieren 6 cores de requests, frente a 6.4 cores libres reportados, y los eventos confirman que el autoscaler ha ampliado el nodepool. Validar tras el escalado que baja la cola y el throttling y que p99 vuelve a menos de 500 ms; no reiniciar la API ni OpenSearch."
+      }
+    ],
+    "confidence": 0.97
+  },
+  "usage": {
+    "input": 11567,
+    "output": 1312,
+    "total": 12879
+  },
+  "costUsd": 0.125851,
+  "costSource": "gateway",
+  "latencyMs": 23669,
+  "score": {
+    "total": 93,
+    "rootCause": 37,
+    "actions": 40,
+    "efficiency": 6,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 13 tool calls vs presupuesto 7 → 6/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"hpa/busqueda/api-busqueda\", entregado \"hpa/busqueda/api-busqueda\" → 20/20",
+      "Palabras clave: 5/6 (HPA, throttl, CPU, tráfico, 6) → 17/20",
+      "Acciones: F1 1.00 contra [update_hpa→hpa/busqueda/api-busqueda] → 40/40"
+    ]
+  },
+  "finalText": "El tráfico pasó de 410 a 1305 req/s y el HPA quedó limitado a 6 réplicas. La API acumula cola y presenta throttling de CPU; en las solicitudes observadas, OpenSearch responde en 97–121 ms pese a tiempos totales cercanos a 4 s. La intervención mínima es ampliar el máximo del HPA, sin reiniciar servicios ni modificar sus límites de CPU.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "e459980d"
+}

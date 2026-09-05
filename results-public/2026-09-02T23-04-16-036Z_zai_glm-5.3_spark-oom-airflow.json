@@ -1,0 +1,219 @@
+{
+  "id": "8ef77060-b7b3-4b21-8fc3-2bb8021eea70",
+  "timestamp": "2026-09-02T23:04:16.036Z",
+  "model": {
+    "id": "zai/glm-5.3",
+    "label": "GLM 5.3",
+    "vendor": "Zhipu (Z.ai)",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "spark-oom-airflow",
+  "scenarioTitle": "DAG de Airflow falla; el driver de Spark muere por OOM en otro cluster",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "orquestador",
+        "namespace": "airflow"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "datos",
+        "kind": "pod",
+        "namespace": "spark",
+        "name": "ventas-diario-driver"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "datos",
+        "kind": "sparkapplication",
+        "namespace": "spark",
+        "name": "ventas-diario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark",
+        "pod": "ventas-diario-driver",
+        "container": "spark-kubernetes-driver",
+        "tail": 100
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_events",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark",
+        "object": "ventas-diario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "sparkapplication/spark/ventas-diario",
+          "summary": "El driver del SparkApplication ventas-diario muere por OOM: desde la imagen 2026.09.01 se incorpora la fuente eventos_web (41.2M filas) y el collect() del broadcast de la dimensión tiendas+productos no cabe en la memoria del driver (3g heap + 1g overhead, límite 4Gi). Los 3 fallos consecutivos del DAG airflow ventas_diario/task agregar_ventas son consecuencia directa de este OOM determinista.",
+          "evidence": [
+            "Event: 'SparkApplication ventas-diario failed: driver container failed with ExitCode: 137, Reason: OOMKilled (x3)'",
+            "Pod ventas-diario-driver: State Terminated, Reason: OOMKilled, Exit Code: 137, Limits memory: 4Gi",
+            "Log driver: 'WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)'",
+            "Log driver: 'ERROR Utils: Uncaught exception in thread driver-heartbeater java.lang.OutOfMemoryError: Java heap space'",
+            "Log driver: 'INFO AgregarVentas: Fuentes: eventos_web (nuevo desde 2026-09-01), pos_tiendas, ecommerce / Leyendo eventos_web: 41.2M filas (ayer: 0)'",
+            "Manifest: spec.driver.memory: 3g, memoryOverhead: 1g (límite total 4Gi)"
+          ]
+        },
+        "actions": [
+          {
+            "action": "patch_resources",
+            "target": "sparkapplication/spark/ventas-diario",
+            "params": {
+              "container": "spark-kubernetes-driver",
+              "memory_request": "8Gi",
+              "memory_limit": "8Gi"
+            },
+            "reason": "Aumentar memoria del driver de 4Gi a 8Gi para que quepa el collect/broadcast de la dimensión (1912.4 MiB computados y creciendo) más el heap de Spark y el overhead. Sin este cambio, cada reintento del DAG volverá a fallar con OOMKilled."
+          }
+        ],
+        "confidence": 0.75
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 4,
+  "submission": {
+    "root_cause": {
+      "component": "sparkapplication/spark/ventas-diario",
+      "summary": "El driver del SparkApplication ventas-diario muere por OOM: desde la imagen 2026.09.01 se incorpora la fuente eventos_web (41.2M filas) y el collect() del broadcast de la dimensión tiendas+productos no cabe en la memoria del driver (3g heap + 1g overhead, límite 4Gi). Los 3 fallos consecutivos del DAG airflow ventas_diario/task agregar_ventas son consecuencia directa de este OOM determinista.",
+      "evidence": [
+        "Event: 'SparkApplication ventas-diario failed: driver container failed with ExitCode: 137, Reason: OOMKilled (x3)'",
+        "Pod ventas-diario-driver: State Terminated, Reason: OOMKilled, Exit Code: 137, Limits memory: 4Gi",
+        "Log driver: 'WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)'",
+        "Log driver: 'ERROR Utils: Uncaught exception in thread driver-heartbeater java.lang.OutOfMemoryError: Java heap space'",
+        "Log driver: 'INFO AgregarVentas: Fuentes: eventos_web (nuevo desde 2026-09-01), pos_tiendas, ecommerce / Leyendo eventos_web: 41.2M filas (ayer: 0)'",
+        "Manifest: spec.driver.memory: 3g, memoryOverhead: 1g (límite total 4Gi)"
+      ]
+    },
+    "actions": [
+      {
+        "action": "patch_resources",
+        "target": "sparkapplication/spark/ventas-diario",
+        "params": {
+          "container": "spark-kubernetes-driver",
+          "memory_request": "8Gi",
+          "memory_limit": "8Gi"
+        },
+        "reason": "Aumentar memoria del driver de 4Gi a 8Gi para que quepa el collect/broadcast de la dimensión (1912.4 MiB computados y creciendo) más el heap de Spark y el overhead. Sin este cambio, cada reintento del DAG volverá a fallar con OOMKilled."
+      }
+    ],
+    "confidence": 0.75
+  },
+  "usage": {
+    "input": 13031,
+    "output": 3073,
+    "total": 16104
+  },
+  "costUsd": 0.02079756,
+  "costSource": "gateway",
+  "latencyMs": 30558,
+  "score": {
+    "total": 100,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 10,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 6 tool calls (presupuesto 9) → 10/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"sparkapplication/spark/ventas-diario\", entregado \"sparkapplication/spark/ventas-diario\" → 20/20",
+      "Palabras clave: 6/6 (OOMKilled, 137, driver, memory, eventos_web, broadcast) → 20/20",
+      "Acciones: F1 1.00 contra [patch_resources→sparkapplication/spark/ventas-diario] → 40/40"
+    ]
+  },
+  "finalText": "La evidencia ya apunta con claridad a la causa raíz. El pod del driver de Spark muere con OOM en pleno `collect()` de la dimensión para el broadcast join. Recapitulo:\n\n**Diagnóstico:**\n1. El DAG `ventas_diario` → tarea `agregar_ventas` lanza el `SparkApplication ventas-diario` en el cluster **datos**.\n2. Los 3 fallos consecutivos (03:05, 03:21, 03:38) corresponden al evento `SparkApplicationFailed ... ExitCode: 137, Reason: OOMKilled (x3)`.\n3. El driver tiene `memory: 3g` + `memoryOverhead: 1g` (límite de 4Gi) y la imagen `2026.09.01` introduce una fuente nueva (`eventos_web`, 41.2M filas). Durante el `collect()` del broadcast de la dimensión tiendas+productos, el driver agota memoria: `WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)` → `java.lang.OutOfMemoryError: Java heap space` → el kernel lo mata (Exit 137).\n4. Reintentar desde la UI (runbook) no servirá: el job fallará de forma determinista con la misma configuración de memoria.",
+  "batchId": "ffc20254",
+  "quality": {
+    "judgeModel": "anthropic/claude-opus-5",
+    "dimensions": [
+      {
+        "id": "diagnostico",
+        "score": 5,
+        "rationale": "Identifica exactamente la causa raíz: OOMKill del driver del SparkApplication en el cluster datos por el nuevo volumen de eventos_web, y descarta explícitamente el reintento del runbook."
+      },
+      {
+        "id": "evidencia",
+        "score": 4,
+        "rationale": "La cadena evento OOMKilled → log de MemoryStore → OutOfMemoryError → límites 4Gi sostiene la conclusión sin invenciones; la única cita no verificada es una paráfrasis del manifiesto que sí consultó (fallo de forma, no de fondo)."
+      },
+      {
+        "id": "investigacion",
+        "score": 5,
+        "rationale": "Siete llamadas bajo presupuesto: salta del namespace de Airflow al cluster datos, describe el pod driver, lee manifiesto, logs y eventos; ninguna vuelta ni salto de fe."
+      },
+      {
+        "id": "remediacion",
+        "score": 4,
+        "rationale": "Plan mínimo y correcto (patch_resources sobre el SparkApplication, sin tocar Airflow), aunque duplicar a 8Gi es algo generoso frente a los ~5.5Gi necesarios y los parámetros usados no mapean del todo a spec.driver.memory/memoryOverhead."
+      },
+      {
+        "id": "seguridad",
+        "score": 5,
+        "rationale": "Respeta el catálogo, actúa sobre el causante y no sobre la víctima (Airflow), y el radio de impacto está limitado a un batch job que ya está fallando."
+      },
+      {
+        "id": "comunicacion",
+        "score": 5,
+        "rationale": "Explicación clara y accionable para un SRE de guardia, con la cadena causal y el aviso de que reintentar no sirve; la confianza de 0.75 es incluso conservadora dada la calidad de la evidencia."
+      }
+    ],
+    "overall": 92,
+    "verdict": "Investigación ejemplar: cruzó del cluster de orquestación al de datos, confirmó el OOMKill del driver con eventos, describe y logs, y explicó por qué el runbook de reintentar es inútil. Fallos menores: una cita del manifiesto mal transcrita respecto a los datos verificables y un dimensionamiento algo holgado (8Gi frente a ~5.5Gi necesarios) con parámetros de patch que no reflejan memory/memoryOverhead. Un SRE senior habría fijado driver.memory ~5g + overhead ~1.5g y notificado al equipo de datos del cambio de volumen para revisar el broadcast join.",
+    "evidenceGrounding": {
+      "cited": 6,
+      "found": 5,
+      "missing": [
+        "Manifest: spec.driver.memory: 3g, memoryOverhead: 1g (límite total 4Gi)"
+      ]
+    },
+    "usage": {
+      "input": 5101,
+      "output": 1020
+    },
+    "costUsd": 0.05100500000000001
+  }
+}

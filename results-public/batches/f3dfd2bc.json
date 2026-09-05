@@ -1,0 +1,45 @@
+{
+  "id": "f3dfd2bc",
+  "createdAt": "2026-09-03T01:04:59.520Z",
+  "models": [
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-terra",
+    "openai/gpt-5.6-luna",
+    "google/gemini-3.1-pro-preview",
+    "google/gemini-3.8-flash",
+    "deepseek/deepseek-v4-pro-0813",
+    "deepseek/deepseek-v4-flash-0731",
+    "zai/glm-5.3",
+    "alibaba/qwen3.8-max-0902",
+    "moonshotai/kimi-k3"
+  ],
+  "scenarios": [
+    "spark-oom-airflow",
+    "two-causes-ordenes"
+  ],
+  "runsPer": 1,
+  "runIds": [
+    "5872d7f6-e5ff-4e0e-a2dc-d6f1ecdbd7b2",
+    "6cc34d75-f6ef-42d0-b471-edd80e031921",
+    "642290f9-3688-4022-86b9-547f889937db",
+    "334ec862-c13a-4058-a656-3479e7def851",
+    "489997bc-ddfb-4844-ae58-bdff0c1dad1f",
+    "d217e524-6fe0-4b76-8beb-19e3620c410c",
+    "ff2d0bcc-84a0-40bf-b4b6-0a720b27c1c7",
+    "6c07d38c-bc88-4c91-a2ae-9083cc1b8640",
+    "a06aba4d-901a-4bf6-8cb1-d2dceeba25f4",
+    "becba006-baf0-48f2-bee8-4d985fa8f70b",
+    "34dc8cd7-6c9d-4003-8104-cae19689b41a",
+    "f9e36f1f-ee29-4597-9db8-431797c03df6",
+    "adbe1bc2-df00-431f-81a2-d66bccd1386d",
+    "05e8eb8f-e471-48eb-810b-14e90f31e7eb",
+    "4d0a223a-d00f-486c-9ddb-65b93d3dfee4",
+    "f10002c4-6c3a-463a-98ea-c81f9784780f",
+    "9aae6617-aedf-4162-ba4f-9994bb161ac0",
+    "25014181-34ea-4303-9609-76f56e7ee85a",
+    "d6d3ad3b-9ca1-4b61-9b45-bdb68866cbd2",
+    "df8ee414-2825-44a2-9da5-4710325d171d"
+  ],
+  "status": "done",
+  "judgeCostUsd": 0
+}

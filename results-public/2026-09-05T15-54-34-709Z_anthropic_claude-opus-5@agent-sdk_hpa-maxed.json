@@ -1,0 +1,319 @@
+{
+  "id": "f945ae0f-38e2-4237-8b66-f25098abd416",
+  "timestamp": "2026-09-05T15:54:34.709Z",
+  "batchId": "ext-anthropic-04",
+  "model": {
+    "id": "anthropic/claude-opus-5@agent-sdk",
+    "label": "claude-opus-5 (Agent SDK)",
+    "vendor": "Anthropic",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "hpa-maxed",
+  "scenarioTitle": "api-busqueda: p99 x8, HPA saturado en maxReplicas",
+  "ok": true,
+  "steps": 18,
+  "toolCalls": [
+    {
+      "step": 1,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "hpa",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda",
+        "pod": "api-busqueda-4d5e6f7a8-b1cde",
+        "tail": 100,
+        "grep": "error|timeout|slow|retry|opensearch|latency",
+        "context": 1
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda",
+        "pod": "opensearch-0",
+        "tail": 100,
+        "grep": "error|warn|slow|gc|reject|shard|circuit",
+        "context": 1
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 5,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "deployment",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 6,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-mx"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 7,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "container_cpu_cfs_throttled_seconds_total",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 8,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_requests_total",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 9,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 10,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 11,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "ingress-nginx"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 12,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "ingress-nginx"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 13,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "node_cpu_allocatable_free_cores"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 14,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_request_duration_seconds_p99",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 15,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 16,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 17,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/busqueda/api-busqueda",
+          "summary": "api-busqueda está saturado en CPU por un crecimiento orgánico de tráfico ~3x (410→1305 req/s). Cada pod tiene limit cpu=1 y ya opera al límite (935m), por lo que sufre throttling en el 78% de los periodos: los 8 worker threads se bloquean y las peticiones se encolan (queue depth 219), lo que dispara el p99 a 4.1s. El HPA no puede compensarlo porque maxReplicas=6 lo tiene topado cuando desea 11 réplicas, y el request de 500m infravalora el consumo real (~935m), distorsionando el cálculo del HPA. OpenSearch NO es el cuello de botella.",
+          "evidence": [
+            "GET /buscar?q=chamarra 200 4102ms upstream=opensearch:97ms",
+            "WARN  request queue depth=219 (worker threads=8 all busy)",
+            "[o.o.i.i.IndexingPressure] no backpressure; search thread pool queue=3 active=6/8",
+            "container_cpu_cfs_throttled_periods_ratio{pod=\"api-busqueda-4d5e6f7a8-b1cde\"} 02:20 -> 0.02 ; 03:14 -> 0.78",
+            "http_requests_total_rate5m{service=\"api-busqueda\"} 02:20 -> 410 ; 03:14 -> 1305 req/s",
+            "resource cpu on pods (as a percentage of request): 187% (935m) / 70%  con Limits: cpu: 1",
+            "ScalingLimited True TooManyReplicas: the desired replica count is more than the maximum replica count",
+            "Warning FailedComputeMetricsReplicas: desired replicas 11 exceeds maxReplicas 6 — capped (x24)",
+            "node_cpu_allocatable_free_cores{nodepool=\"aks-userpool-99887766-vmss\"} 6.4 (autoscaler 4/8 nodos)",
+            "NewReplicaSet: api-busqueda-4d5e6f7a8 — último rollout: 9d (sin despliegue reciente)"
+          ]
+        },
+        "actions": [
+          {
+            "action": "update_hpa",
+            "target": "hpa/busqueda/api-busqueda",
+            "params": {
+              "minReplicas": 4,
+              "maxReplicas": 12
+            },
+            "reason": "Alivio inmediato: el HPA calcula 11 réplicas deseadas pero está topado en 6 desde hace 25 min. Subir maxReplicas a 12 le permite alcanzar el punto de equilibrio; hay margen (6.4 cores libres y el cluster autoscaler puede pasar de 4 a 8 nodos). Subir minReplicas a 2->4 evita que el próximo pico vuelva a arrancar desde 2 réplicas con una rampa demasiado lenta."
+          },
+          {
+            "action": "patch_resources",
+            "target": "deployment/busqueda/api-busqueda",
+            "params": {
+              "container": "api",
+              "cpu_request": "1",
+              "cpu_limit": "2"
+            },
+            "reason": "Elimina la causa directa de la latencia: con limit=1 el contenedor se throttlea el 78% de los periodos y los 8 worker threads no pueden drenar la cola. Subir el limit a 2 da cabecera de burst; alinear el request a 1 (consumo real ~935m) corrige la métrica del HPA, que hoy escala sobre un request infravalorado (187%) y por eso se satura de inmediato."
+          }
+        ],
+        "confidence": 0.85
+      },
+      "ok": true,
+      "ms": 1
+    }
+  ],
+  "submission": {
+    "root_cause": {
+      "component": "deployment/busqueda/api-busqueda",
+      "summary": "api-busqueda está saturado en CPU por un crecimiento orgánico de tráfico ~3x (410→1305 req/s). Cada pod tiene limit cpu=1 y ya opera al límite (935m), por lo que sufre throttling en el 78% de los periodos: los 8 worker threads se bloquean y las peticiones se encolan (queue depth 219), lo que dispara el p99 a 4.1s. El HPA no puede compensarlo porque maxReplicas=6 lo tiene topado cuando desea 11 réplicas, y el request de 500m infravalora el consumo real (~935m), distorsionando el cálculo del HPA. OpenSearch NO es el cuello de botella.",
+      "evidence": [
+        "GET /buscar?q=chamarra 200 4102ms upstream=opensearch:97ms",
+        "WARN  request queue depth=219 (worker threads=8 all busy)",
+        "[o.o.i.i.IndexingPressure] no backpressure; search thread pool queue=3 active=6/8",
+        "container_cpu_cfs_throttled_periods_ratio{pod=\"api-busqueda-4d5e6f7a8-b1cde\"} 02:20 -> 0.02 ; 03:14 -> 0.78",
+        "http_requests_total_rate5m{service=\"api-busqueda\"} 02:20 -> 410 ; 03:14 -> 1305 req/s",
+        "resource cpu on pods (as a percentage of request): 187% (935m) / 70%  con Limits: cpu: 1",
+        "ScalingLimited True TooManyReplicas: the desired replica count is more than the maximum replica count",
+        "Warning FailedComputeMetricsReplicas: desired replicas 11 exceeds maxReplicas 6 — capped (x24)",
+        "node_cpu_allocatable_free_cores{nodepool=\"aks-userpool-99887766-vmss\"} 6.4 (autoscaler 4/8 nodos)",
+        "NewReplicaSet: api-busqueda-4d5e6f7a8 — último rollout: 9d (sin despliegue reciente)"
+      ]
+    },
+    "actions": [
+      {
+        "action": "update_hpa",
+        "target": "hpa/busqueda/api-busqueda",
+        "params": {
+          "minReplicas": 4,
+          "maxReplicas": 12
+        },
+        "reason": "Alivio inmediato: el HPA calcula 11 réplicas deseadas pero está topado en 6 desde hace 25 min. Subir maxReplicas a 12 le permite alcanzar el punto de equilibrio; hay margen (6.4 cores libres y el cluster autoscaler puede pasar de 4 a 8 nodos). Subir minReplicas a 2->4 evita que el próximo pico vuelva a arrancar desde 2 réplicas con una rampa demasiado lenta."
+      },
+      {
+        "action": "patch_resources",
+        "target": "deployment/busqueda/api-busqueda",
+        "params": {
+          "container": "api",
+          "cpu_request": "1",
+          "cpu_limit": "2"
+        },
+        "reason": "Elimina la causa directa de la latencia: con limit=1 el contenedor se throttlea el 78% de los periodos y los 8 worker threads no pueden drenar la cola. Subir el limit a 2 da cabecera de burst; alinear el request a 1 (consumo real ~935m) corrige la métrica del HPA, que hoy escala sobre un request infravalorado (187%) y por eso se satura de inmediato."
+      }
+    ],
+    "confidence": 0.85
+  },
+  "catalogViolations": [],
+  "stopReason": "submitted",
+  "usage": {
+    "input": 100017,
+    "output": 9008,
+    "total": 109025
+  },
+  "costUsd": 0.4368335,
+  "costSource": "gateway",
+  "latencyMs": 121215,
+  "score": {
+    "total": 94,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 4,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 16 tool calls vs presupuesto 7 → 4/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"hpa/busqueda/api-busqueda\", entregado \"deployment/busqueda/api-busqueda\" → 20/20",
+      "Palabras clave: 6/6 (maxReplicas, HPA, throttl, CPU, tráfico, 6) → 20/20",
+      "Acciones: F1 1.00 contra [update_hpa→hpa/busqueda/api-busqueda, patch_resources→deployment/busqueda/api-busqueda] → 40/40"
+    ]
+  },
+  "finalText": "## Diagnóstico\n\n**Causa raíz:** `deployment/busqueda/api-busqueda` está saturado en CPU por un aumento orgánico de tráfico ~3x, con un `limit: cpu=1` demasiado ajustado y un HPA topado en `maxReplicas=6`.\n\n### La cadena de evidencia\n\nEl dato que descarta al sospechoso obvio está en los logs de la propia API:\n\n```\nGET /buscar?q=chamarra 200 4102ms upstream=opensearch:97ms\nWARN request queue depth=219 (worker threads=8 all busy)\n```\n\nLa petición tarda 4.1s pero OpenSearch responde en 97ms. **El tiempo no se va en el backend, se va en la cola de entrada.** OpenSearch lo confirma desde su lado: `no backpressure; search thread pool queue=3 active=6/8`. Es una víctima sana, no el culpable — reiniciar el StatefulSet habría sido un error.\n\nEl cuello real es CPU:\n- Tráfico: **410 → 1305 req/s** (rampa suave que se aplana: crecimiento orgánico, no un retry storm exponencial)\n- Throttling: **0.02 → 0.78** — el 78% de los periodos CFS throttleados\n- HPA: `187% (935m) / 70%` con `limit: cpu 1` → los pods viven pegados al techo\n\nY el HPA lo grita literalmente en los eventos:\n```\nWarning FailedComputeMetricsReplicas: desired replicas 11 exceeds maxReplicas 6 — capped (x24)\n```\n\nQuiere 11 réplicas y solo puede dar 6, desde hace 25 minutos.\n\n### Por qué dos acciones y no una\n\nSubir solo `maxReplicas` dejaría cada pod igualmente throttleado a 1 core. Subir solo los recursos dejaría al HPA igualmente topado. Además hay un defecto sutil que había que corregir: el `request` de 500m infravalora el consumo real (~935m) casi 2x, así que el HPA escala sobre una base falsa y se satura de inmediato — alinear el request a 1 core arregla su aritmética.\n\nVerifiqué que hay capacidad antes de proponer escalar: 6.4 cores libres y el autoscaler en 4/8 nodos.\n\n**Dos matices a vigilar:**\n1. Las 12 réplicas × 1 core de request suman ~9 cores adicionales de scheduling; dependerá del autoscaler levantar 2-3 nodos. Si el nodepool topara en 8, habría que revisar el tamaño de VM.\n2. Un detalle que no pude cerrar: el tráfico por pod apenas subió (205 → 217 req/s), lo que sugiere que el servicio **ya operaba al filo** antes del incidente (~0.9 de 1 core). Esto no fue un pico anómalo sino un sistema crónicamente sin headroom. Vale la pena una revisión de capacity planning más allá de este parche, y no pude confirmar el lado del ingress porque el namespace `ingress-nginx` aparece vacío.",
+  "nudged": false
+}

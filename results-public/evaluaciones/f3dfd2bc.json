@@ -1,0 +1,278 @@
+{
+ "evaluador": "Claude Fable 5.1 (segundo juez, no ciego)",
+ "rubrica": "Misma escala 1-5 por dimensión que judge.ts; global = (media-1)/4*100",
+ "lotes": [
+  "f3dfd2bc",
+  "ext-anthropic-02"
+ ],
+ "runs": {
+  "spark-oom-airflow": {
+   "anthropic/claude-opus-5@agent-sdk": {
+    "d": [
+     5,
+     5,
+     4,
+     5,
+     5,
+     5
+    ],
+    "nota": "El diagnóstico más completo de la tanda: fuente eventos_web de 41,2 M filas, collect() para un broadcast de 1,9 GiB, heap de 3g dentro de 4Gi, executors y Airflow como víctimas, runbook desmentido. Diez citas, diez verificadas. Trece consultas: sobran el describe del nodo y el segundo list_pods. Sube el driver a 10Gi y escala el problema de código; ambas bien argumentadas."
+   },
+   "anthropic/claude-sonnet-5@agent-sdk": {
+    "d": [
+     5,
+     5,
+     5,
+     5,
+     5,
+     4
+    ],
+    "nota": "Siete consultas, todas con grep y directas al driver: la investigación más limpia del escenario. Cadena OOM completa (3g+1g, broadcast, executors desasociados, reintentar no sirve). Le falta el porqué de ahora: no menciona la fuente nueva, que estaba en el log. Driver a 6g/7g y no_action sobre Airflow."
+   },
+   "deepseek/deepseek-v4-flash-0731": {
+    "d": [
+     5,
+     5,
+     3,
+     4,
+     5,
+     3
+    ],
+    "nota": "Diagnóstico completo con fuente nueva, imagen 2026.09.01 y la métrica en el límite exacto. Diecinueve consultas: dobla el presupuesto con el driver de catalogo-productos, el scheduler y dos lecturas de 500 líneas. Cerró el turno con un resumen en inglés en vez de llamar a submit_remediation y entregó solo tras el recordatorio final. Solo escala, con la tesis (no comprobada en la foto) de que el operador regenera la SparkApplication; el catálogo permite parchearla."
+   },
+   "deepseek/deepseek-v4-pro-0813": {
+    "d": [
+     5,
+     5,
+     5,
+     5,
+     5,
+     4
+    ],
+    "nota": "Seis consultas con grep y contexto, 23 segundos, driver a 6g. Explica el collect() y el broadcast de 1,9 GB que no cabe en 3g. Las dos citas marcadas por el verificador son paráfrasis exactas. No dice qué cambió ayer (eventos_web), que un SRE de guardia querría saber."
+   },
+   "google/gemini-3.1-pro-preview": {
+    "d": [
+     5,
+     4,
+     3,
+     5,
+     5,
+     3
+    ],
+    "nota": "Esta vez sí lee el log y encuentra la fuente nueva y el broadcast, pero a base de volcar el log entero dos veces (grep vacío y grep .) y con cinco llamadas duplicadas (describe de la SparkApplication y del nodo, list_pods, get_events). Tres citas justas. Confianza 1,0 por sistema; resumen de una frase."
+   },
+   "google/gemini-3.8-flash": {
+    "d": [
+     5,
+     5,
+     2,
+     5,
+     5,
+     4
+    ],
+    "nota": "Igual que en el lote anterior: diagnóstico completo con la fuente nueva y el broadcast, y después una docena de llamadas sobre Airflow, el spark-operator y métricas de nodo que no cambian nada. Veintitrés consultas para un escenario de nueve. Driver a 8Gi."
+   },
+   "zai/glm-5.3": {
+    "d": [
+     5,
+     5,
+     5,
+     5,
+     5,
+     5
+    ],
+    "nota": "Nueve consultas exactas, incluida la del worker de Airflow para cerrar la cadena, siete citas literales con marca de tiempo, driver a 8Gi con la aclaración de que Airflow y executors son víctimas. Impecable por segunda vez en este escenario."
+   },
+   "openai/gpt-5.6-luna": {
+    "d": [
+     5,
+     5,
+     4,
+     5,
+     5,
+     4
+    ],
+    "nota": "Catorce consultas por 0,4 centavos: un grep con (?i) que el motor rechaza, y luego métricas y logs del scheduler que sobran. Siete citas literales, incluido el log de Airflow. Driver a 8Gi y aviso de no reiniciar a las víctimas. No menciona la fuente nueva."
+   },
+   "openai/gpt-5.6-sol": {
+    "d": [
+     5,
+     5,
+     4,
+     4,
+     5,
+     4
+    ],
+    "nota": "Cadena correcta (collect, 1,9 GiB, heap de 3 GiB, límite de 4 GiB) y comprueba nodos y Airflow para descartarlos. Solo escala, alegando que el parche no persiste en la plantilla de Airflow: tesis razonable pero no verificada en la foto, y el catálogo permite parchear la SparkApplication. Confianza 0,98 sin actuar."
+   },
+   "openai/gpt-5.6-terra": {
+    "d": [
+     5,
+     5,
+     5,
+     4,
+     5,
+     4
+    ],
+    "nota": "Nueve consultas, con previous y grep, tres citas literales que cubren toda la cadena. Escala en vez de parchear porque patch_resources no cambia SPARK_DRIVER_MEMORY: es un matiz técnico real, pero el catálogo ofrece el parche sobre la SparkApplication y el escenario lo prefiere. Confianza 0,98 sin actuar."
+   },
+   "moonshotai/kimi-k3": {
+    "d": [
+     5,
+     5,
+     5,
+     5,
+     5,
+     5
+    ],
+    "nota": "Siete consultas, cinco citas, fuente nueva, broadcast y la métrica en el límite un segundo antes del OOMKill. Driver a 8Gi con la recomendación al equipo de datos dentro del razonamiento. Redondo, como en el lote anterior."
+   },
+   "alibaba/qwen3.8-max-0902": {
+    "d": [
+     5,
+     5,
+     2,
+     5,
+     5,
+     5
+    ],
+    "nota": "Diez citas literales y la escalada más útil (autoBroadcastJoinThreshold, tarea de 4102 KiB, aviso de que el cambio debe fijarse en el DAG). Pero veintiuna consultas: catalogo-productos, manifest del nodo, spark-operator, scheduler, eventos del VMSS. Dobla el presupuesto con ramas que no aportan."
+   }
+  },
+  "two-causes-ordenes": {
+   "anthropic/claude-opus-5@agent-sdk": {
+    "d": [
+     4,
+     5,
+     4,
+     4,
+     5,
+     5
+    ],
+    "nota": "Ve las dos causas y las une con la métrica correcta: los 5xx pasan de 4,6 a 18,2 req/s justo tras el rollout. Lee el ReplicaSet antiguo y compara 1500/2 con 300/0. Propone rollback a la 41 y HPA a 10, más un patch de CPU que sobra y una escalada útil. El fallo es de encuadre: llama causa a inventario y amplificador a la rev 42, cuando la alerta y el salto de 5xx nacen de la 42."
+   },
+   "anthropic/claude-sonnet-5@agent-sdk": {
+    "d": [
+     2,
+     5,
+     4,
+     3,
+     5,
+     3
+    ],
+    "nota": "Encuentra el HPA topado y el throttling con seis citas exactas, y declara el despliegue de hace 25 minutos coincidencia temporal porque los pods no reinician. No pidió la serie de 5xx ni el ReplicaSet anterior. Sube el HPA, añade un patch de CPU y escala el timeout de 300 ms que el catálogo le permitía revertir con rollback_deployment."
+   },
+   "deepseek/deepseek-v4-flash-0731": {
+    "d": [
+     5,
+     5,
+     5,
+     5,
+     5,
+     5
+    ],
+    "nota": "Nueve consultas y 0,5 centavos. El grep con timeout saca la línea de arranque de la 3.7.0 con los valores antiguos, cruza con el HPA capado y entrega exactamente el plan de referencia: rollback de api-ordenes y HPA de inventario a 9. El único run de los doce que lo resuelve en presupuesto."
+   },
+   "deepseek/deepseek-v4-pro-0813": {
+    "d": [
+     3,
+     5,
+     3,
+     3,
+     4,
+     3
+    ],
+    "nota": "Diagnostica la mitad: HPA capado y throttling, con ocho citas correctas. Nunca mira el manifest ni el ReplicaSet de api-ordenes pese a que la alerta dice que se desplegó hace 25 minutos, y lee tres veces el mismo log en pods hermanos. Sube el HPA y parchea CPU; el timeout de 300 ms aparece en su resumen como dato, no como cambio."
+   },
+   "google/gemini-3.1-pro-preview": {
+    "d": [
+     5,
+     4,
+     3,
+     5,
+     5,
+     3
+    ],
+    "nota": "Lee el ReplicaSet de la revisión 41 y ve el cambio de 1500/2 a 300/0: diagnóstico correcto y plan de referencia (rollback a la 41, HPA a 10). Dieciséis consultas con varias inútiles (manifest de un ReplicaSet sin nombre, HPA de api-ordenes, reinicios, grep de POST /reservas). Cuatro citas y confianza 1,0 por sistema."
+   },
+   "google/gemini-3.8-flash": {
+    "d": [
+     3,
+     5,
+     2,
+     3,
+     4,
+     3
+    ],
+    "nota": "Tuvo en la mano el ReplicaSet antiguo con 1500/2 y el manifest con 300/0 y no los conectó. Veintidós consultas, con excursiones a catalogo-web y a un ConfigMap inexistente. Solo sube el HPA: según la narrativa quedan un 4 % de errores."
+   },
+   "zai/glm-5.3": {
+    "d": [
+     5,
+     5,
+     4,
+     5,
+     5,
+     5
+    ],
+    "nota": "El grep con timeout encuentra la línea de arranque con los valores antiguos; nueve citas literales, incluida la condición ScalingLimited y la serie de throttling. Llama regresión a la rev 42 y saturación a inventario, y entrega rollback a la 41 más HPA a 10 con la capacidad de nodos comprobada. Dieciséis consultas, algo más de las necesarias."
+   },
+   "openai/gpt-5.6-luna": {
+    "d": [
+     3,
+     5,
+     2,
+     3,
+     4,
+     3
+    ],
+    "nota": "Hace el mismo grep en los cuatro pods de api-ordenes y pide memoria y reinicios que no vienen al caso: veintitrés consultas. Consultó la serie de 5xx y no reparó en el salto de 4,6 a 18,2 tras el rollout. Seis citas literales, HPA a 10 y nada sobre el despliegue. Confianza 0,98."
+   },
+   "openai/gpt-5.6-sol": {
+    "d": [
+     3,
+     5,
+     2,
+     3,
+     4,
+     3
+    ],
+    "nota": "Veintinueve consultas, casi el triple del presupuesto: ocho greps idénticos en pods hermanos, memoria, reinicios. Obtuvo el manifest de la rev 42 y no buscó la anterior. Ocho citas exactas y una sola acción, subir el HPA a 9. Confianza 0,97 con la mitad del incidente sin resolver."
+   },
+   "openai/gpt-5.6-terra": {
+    "d": [
+     2,
+     5,
+     2,
+     3,
+     4,
+     3
+    ],
+    "nota": "Su grep de INVENTARIO sacó la línea que dice was 1500/2 in 3.6.2 y aun así concluye que api-ordenes es víctima, no causa. Veintiséis consultas con dos logs de inventario pedidos con el contenedor equivocado. Cita la tasa de 5xx de 19 req/s sin preguntarse cuándo empezó. Solo HPA a 9."
+   },
+   "moonshotai/kimi-k3": {
+    "d": [
+     2,
+     5,
+     3,
+     3,
+     4,
+     3
+    ],
+    "nota": "Lee los logs con tail y sin grep, así que la línea de arranque queda fuera de las 60 últimas. Construye una cronología (saturación desde las 02:30, despliegue a las 02:50) para llamar herring rojo a la rev 42, pero su propia cita de 5xx pasando de 0,4 a 19 req/s salta justo tras el rollout. Solo HPA a 12."
+   },
+   "alibaba/qwen3.8-max-0902": {
+    "d": [
+     2,
+     5,
+     3,
+     3,
+     4,
+     3
+    ],
+    "nota": "Once citas, once verificadas, y el ReplicaSet antiguo en la mano con 1500/2. Argumenta que el despliegue no explica el incidente porque el tráfico de api-ordenes es plano y los timeouts subían antes; ignora que los 5xx se cuadruplican a las 03:00. Excursión a catalogo-web para buscar al llamador. Solo HPA a 9."
+   }
+  }
+ }
+}

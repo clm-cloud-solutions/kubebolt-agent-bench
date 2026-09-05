@@ -1,0 +1,194 @@
+{
+  "id": "1010a137-f02e-40a8-8931-299c3b378010",
+  "timestamp": "2026-09-03T01:50:56.223Z",
+  "model": {
+    "id": "moonshotai/kimi-k3",
+    "label": "Kimi K3",
+    "vendor": "Moonshot",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "runbook-trap-cache",
+  "scenarioTitle": "catalogo-api con 3 % de aciertos de caché: el runbook culpa a redis",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "catalogo-api-9d8c7b6a5-q1w2e",
+        "tail": 100,
+        "grep": "cache|redis|miss"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_memory_working_set_bytes",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_mem_fragmentation_ratio",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_keys_total",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "cache_hit_ratio",
+        "labels": {
+          "namespace": "catalogo",
+          "service": "catalogo-api"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/catalogo/catalogo-api",
+          "summary": "El despliegue de catalogo-api revisión 31 (imagen api:5.4.0, hace ~22 min) introdujo CACHE_KEY_TEMPLATE=\"cat:v4:{{request_id}}:producto:{{id}}\". Al incluir un request_id único por petición, cada GET de producto genera una clave de caché distinta: hit ratio cae de 92% a 3%, se escriben ~1.8M de claves basura en redis y toda la carga se traslada a postgres (×5). Redis está sano; la fragmentación de memoria es síntoma, no causa, por lo que el reinicio del runbook no resolvería el problema.",
+          "evidence": [
+            "deployment.kubernetes.io/revision: \"31\", image: acrclm.azurecr.io/catalogo/api:5.4.0, env CACHE_KEY_TEMPLATE value: \"cat:v4:{{request_id}}:producto:{{id}}\"",
+            "Evento: Normal ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3 (hace 22m)",
+            "Log: GET /productos/2080 200 880ms cache=miss key=cat:v4:req-ef52ff:producto:6571 pg=396ms",
+            "Log: DEBUG redis SET cat:v4:req-d196bc:producto:5002 ttl=600 ok 1ms (redis responde sin errores)",
+            "Log: GET /categorias 200 20ms cache=hit key=cat:v4:categorias (las claves estáticas sí dan hit)",
+            "Métrica cache_hit_ratio{service=catalogo-api}: 0.92 (02:30) -> 0.12 (02:55) -> 0.03 (03:00)",
+            "Métrica redis_keys_total: 48210 (02:30) -> 310442 (02:55) -> 1846211 (03:14)"
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/catalogo/catalogo-api",
+            "reason": "Volver a la revisión anterior (30) restaura la plantilla de clave de caché sin {{request_id}}, recuperando el hit ratio del 92% y descargando postgres. Es la acción mínima que resuelve la causa raíz; las claves basura en redis expiran solas por su TTL de 600s, por lo que no es necesario reiniciar redis."
+          }
+        ],
+        "confidence": 0.95
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 4,
+  "submission": {
+    "root_cause": {
+      "component": "deployment/catalogo/catalogo-api",
+      "summary": "El despliegue de catalogo-api revisión 31 (imagen api:5.4.0, hace ~22 min) introdujo CACHE_KEY_TEMPLATE=\"cat:v4:{{request_id}}:producto:{{id}}\". Al incluir un request_id único por petición, cada GET de producto genera una clave de caché distinta: hit ratio cae de 92% a 3%, se escriben ~1.8M de claves basura en redis y toda la carga se traslada a postgres (×5). Redis está sano; la fragmentación de memoria es síntoma, no causa, por lo que el reinicio del runbook no resolvería el problema.",
+      "evidence": [
+        "deployment.kubernetes.io/revision: \"31\", image: acrclm.azurecr.io/catalogo/api:5.4.0, env CACHE_KEY_TEMPLATE value: \"cat:v4:{{request_id}}:producto:{{id}}\"",
+        "Evento: Normal ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3 (hace 22m)",
+        "Log: GET /productos/2080 200 880ms cache=miss key=cat:v4:req-ef52ff:producto:6571 pg=396ms",
+        "Log: DEBUG redis SET cat:v4:req-d196bc:producto:5002 ttl=600 ok 1ms (redis responde sin errores)",
+        "Log: GET /categorias 200 20ms cache=hit key=cat:v4:categorias (las claves estáticas sí dan hit)",
+        "Métrica cache_hit_ratio{service=catalogo-api}: 0.92 (02:30) -> 0.12 (02:55) -> 0.03 (03:00)",
+        "Métrica redis_keys_total: 48210 (02:30) -> 310442 (02:55) -> 1846211 (03:14)"
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/catalogo/catalogo-api",
+        "reason": "Volver a la revisión anterior (30) restaura la plantilla de clave de caché sin {{request_id}}, recuperando el hit ratio del 92% y descargando postgres. Es la acción mínima que resuelve la causa raíz; las claves basura en redis expiran solas por su TTL de 600s, por lo que no es necesario reiniciar redis."
+      }
+    ],
+    "confidence": 0.95
+  },
+  "usage": {
+    "input": 20179,
+    "output": 3675,
+    "total": 23854
+  },
+  "costUsd": 0.1078869,
+  "costSource": "gateway",
+  "latencyMs": 82526,
+  "score": {
+    "total": 97,
+    "rootCause": 37,
+    "actions": 40,
+    "efficiency": 10,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 8 tool calls (presupuesto 8) → 10/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/catalogo/catalogo-api\", entregado \"deployment/catalogo/catalogo-api\" → 20/20",
+      "Palabras clave: 5/6 (CACHE_KEY_TEMPLATE, request_id, revision, 31, miss) → 17/20",
+      "Acciones: F1 1.00 contra [rollback_deployment→deployment/catalogo/catalogo-api] → 40/40"
+    ]
+  },
+  "finalText": "Diagnóstico confirmado. La correlación temporal y la evidencia son concluyentes:\n\n- **02:52** (~22 min): despliegue de `catalogo-api` rev. 31 (`api:5.4.0`).\n- **02:55**: `cache_hit_ratio` cae de 0.92 → 0.12 → 0.03.\n- `redis_keys_total` explota: 48k → 310k → **1.85M** de claves basura (una por request, TTL 600s, nunca reutilizadas).\n- La fragmentación de redis (1.48→1.61) es **síntoma** de la inundación de claves, no la causa. El runbook (reiniciar redis) no resolvería nada: las claves seguirían siendo únicas por petición.\n\n**Causa raíz**: el despliegue rev. 31 introdujo `CACHE_KEY_TEMPLATE=cat:v4:{{request_id}}:producto:{{id}}`. Al incluir `{{request_id}}`, cada petición a `/productos/{id}` genera una clave distinta → miss garantizado → toda la carga va a postgres (×5). Las claves estáticas (`cat:v4:categorias`) siguen dando hit, lo que confirma que redis funciona bien.\n\n**Remediación**: rollback del deployment a la revisión anterior, que restaura la plantilla de clave correcta. Las claves basura expiran solas por TTL (~10 min); no hace falta tocar redis.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "5e27823b"
+}

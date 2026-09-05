@@ -1,0 +1,74 @@
+---
+import type { ModelAggregate } from '@/lib/harness/store';
+
+interface Props {
+  agg: ModelAggregate[];
+  metric: 'det' | 'quality';
+  id: string;
+}
+const { agg, metric, id } = Astro.props;
+
+// Un punto por modelo: X = coste medio por run, Y = score (determinista o calidad),
+// radio = latencia media. Cuadrante arriba-izquierda = donde quieres estar.
+const pts = agg
+  .filter((m) => m.avgCost != null && (metric === 'det' || m.quality))
+  .map((m) => ({
+    label: m.label,
+    family: m.family,
+    x: m.avgCost!,
+    y: metric === 'det' ? m.avgScore : m.quality!.overall,
+    lat: m.avgLatencyMs,
+  }));
+
+const W = 720, H = 380, L = 52, R = 24, T = 20, B = 44;
+const maxX = Math.max(0.01, ...pts.map((p) => p.x)) * 1.18;
+const minLat = Math.min(...pts.map((p) => p.lat), 1);
+const maxLat = Math.max(...pts.map((p) => p.lat), minLat + 1);
+const sx = (v: number) => L + (v / maxX) * (W - L - R);
+const sy = (v: number) => T + (1 - v / 100) * (H - T - B);
+const rad = (lat: number) => 5 + ((lat - minLat) / (maxLat - minLat || 1)) * 8;
+const medianX = pts.length ? [...pts].sort((a, b) => a.x - b.x)[Math.floor(pts.length / 2)].x : maxX / 2;
+const xTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * maxX);
+const fmt = (c: number) => (c < 0.01 ? `$${c.toFixed(4)}` : `$${c.toFixed(3)}`);
+// Etiquetas: si dos puntos quedan casi a la misma altura y cerca en X, la
+// segunda etiqueta baja una línea para no pisarse.
+const placed: { x: number; y: number }[] = [];
+const labelY = (p: { x: number; y: number; lat: number }) => {
+  let y = sy(p.y) + 4;
+  for (const q of placed) if (Math.abs(q.y - y) < 14 && Math.abs(q.x - sx(p.x)) < 150) y = q.y + 15;
+  placed.push({ x: sx(p.x), y });
+  return y;
+};
+---
+
+<svg viewBox={`0 0 ${W} ${H}`} class="frontier" id={id} role="img" aria-label={`Score ${metric === 'det' ? 'determinista' : 'de calidad'} frente a coste por run`}>
+  <rect x={L} y={T} width={sx(medianX) - L} height={sy(75) - T} fill="var(--green-soft)" />
+  <text x={L + 8} y={T + 16} class="quad">acierto alto, coste bajo</text>
+  {[0, 25, 50, 75, 100].map((v) => (
+    <>
+      <line x1={L} x2={W - R} y1={sy(v)} y2={sy(v)} stroke="var(--line)" stroke-dasharray={v ? '2 4' : undefined} />
+      <text x={L - 8} y={sy(v) + 4} class="tick" text-anchor="end">{v}</text>
+    </>
+  ))}
+  {xTicks.map((v) => (
+    <text x={sx(v)} y={H - B + 18} class="tick" text-anchor="middle">{fmt(v)}</text>
+  ))}
+  <line x1={L} x2={L} y1={T} y2={H - B} stroke="var(--line-strong)" />
+  <text x={W - R} y={H - 6} class="tick" text-anchor="end">coste medio por run · tamaño = latencia</text>
+  {pts.map((p) => (
+    <g>
+      <circle cx={sx(p.x)} cy={sy(p.y)} r={rad(p.lat)} fill={p.family === 'china' ? 'var(--blue)' : 'var(--green)'} fill-opacity="0.85">
+        <title>{p.label}: {p.y.toFixed(0)} · {fmt(p.x)} · {(p.lat / 1000).toFixed(0)}s</title>
+      </circle>
+      <text x={sx(p.x) + rad(p.lat) + 5} y={labelY(p)} class="lbl">{p.label}</text>
+    </g>
+  ))}
+  {pts.length === 0 && <text x={W / 2} y={H / 2} class="tick" text-anchor="middle">Sin coste conocido para estos modelos</text>}
+</svg>
+
+<style>
+  .frontier { width: 100%; max-width: 760px; height: auto; display: block; margin: 0 auto; font-family: var(--font); }
+  .frontier .tick { font-size: 11px; fill: var(--ink-3); font-family: var(--mono); }
+  .frontier .lbl { font-size: 12px; fill: var(--ink); font-weight: 500; }
+  .frontier .quad { font-size: 11px; fill: var(--green); }
+</style>

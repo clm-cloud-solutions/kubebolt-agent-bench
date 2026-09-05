@@ -1,0 +1,49 @@
+---
+import type { ModelAggregate } from '@/lib/harness/store';
+import { DIMENSIONS } from '@/lib/harness/judge';
+
+interface Props {
+  agg: ModelAggregate[];
+}
+const models = Astro.props.agg.filter((m) => m.quality);
+// Una fila por dimensión, una barra por modelo. Se ve de un vistazo dónde
+// gana cada uno: quién diagnostica mejor, quién comunica peor.
+const palette = ['var(--green)', 'var(--blue)', 'var(--amber)', 'var(--coral)', 'var(--ink-2)', '#9b6bd6', '#2aa7a0', '#c2668a', '#8a7a3a', '#d97b2b', '#4f8fd6', '#6aa84f', '#b05cc7', '#8c6d4f'];
+---
+
+<div class="dims-chart">
+  <div class="legend">
+    {models.map((m, i) => (
+      <span><i style={`background:${palette[i % palette.length]}`}></i>{m.label}</span>
+    ))}
+  </div>
+  {DIMENSIONS.map((d) => (
+    <div class="dim-row">
+      <div class="dim-name" title={d.desc}>{d.label}</div>
+      <div class="dim-bars">
+        {models.map((m, i) => {
+          const v = m.quality!.dims[d.id] ?? 1;
+          return (
+            <div class="bar-line">
+              <b style={`width:${((v - 1) / 4) * 100}%;background:${palette[i % palette.length]}`}></b>
+              <span>{v.toFixed(1)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  ))}
+</div>
+
+<style>
+  .dims-chart { display: grid; gap: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.82rem; color: var(--ink-2); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .dim-row { display: grid; grid-template-columns: 130px 1fr; gap: 14px; align-items: start; }
+  .dim-name { font-size: 0.88rem; padding-top: 1px; }
+  .dim-bars { display: grid; gap: 3px; }
+  .bar-line { display: grid; grid-template-columns: 1fr 28px; gap: 8px; align-items: center; }
+  .bar-line b { display: block; height: 8px; border-radius: 2px; min-width: 2px; }
+  .bar-line span { font-size: 0.75rem; color: var(--ink-3); font-variant-numeric: tabular-nums; text-align: right; }
+  @media (max-width: 760px) { .dim-row { grid-template-columns: 1fr; gap: 6px; } }
+</style>

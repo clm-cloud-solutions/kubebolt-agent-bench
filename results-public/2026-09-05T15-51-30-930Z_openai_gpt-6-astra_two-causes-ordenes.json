@@ -1,0 +1,263 @@
+{
+  "id": "178309f4-c66a-4b41-adcb-3c3d8d64b794",
+  "timestamp": "2026-09-05T15:51:30.930Z",
+  "model": {
+    "id": "openai/gpt-6-astra",
+    "label": "GPT-6 Astra",
+    "vendor": "OpenAI",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "two-causes-ordenes",
+  "scenarioTitle": "api-ordenes con 18 % de 5xx: dos causas que se suman",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "object": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-a1b2c",
+        "container": "api",
+        "previous": false,
+        "tail": 300,
+        "grep": "error|timeout|5[0-9][0-9]",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "container": "inventario",
+        "previous": false,
+        "tail": 150,
+        "grep": "error|warn|timeout|slow",
+        "context": 1
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_request_duration_seconds_p99",
+        "labels": {
+          "namespace": "tienda",
+          "service": "inventario"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_requests_total_rate5m",
+        "labels": {}
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "node_cpu_allocatable_free_cores",
+        "labels": {}
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "hpa/tienda/inventario",
+          "summary": "El HPA de inventario está limitado a 4 réplicas pese a una utilización de CPU del 190% sobre requests frente al objetivo del 70%, tras aumentar su tráfico de 150 a 312 req/s. La capacidad insuficiente provoca throttling y colas en inventario, agotando el timeout de 300 ms de api-ordenes y generando 503; la saturación ya existía antes de la revisión 42.",
+          "evidence": [
+            "http_requests_total_rate5m{namespace=\"tienda\", service=\"inventario\"} [req/s]\n  2026-09-02T02:10:00Z  150\n  2026-09-02T02:30:00Z  290\n  2026-09-02T03:14:00Z  312",
+            "resource cpu on pods  (as a percentage of request):  190% (950m) / 70%",
+            "Max replicas:                                          4",
+            "ScalingLimited  True    TooManyReplicas      the desired replica count is more than the maximum replica count",
+            "container_cpu_cfs_throttled_periods_ratio{namespace=\"tienda\", pod=\"inventario-5f4e3d2c1-m9n0o\", container=\"inventario\"} [ratio]\n  2026-09-02T02:10:00Z  0.03\n  2026-09-02T02:40:00Z  0.66\n  2026-09-02T03:14:00Z  0.81",
+            "2026-09-02T03:09:02.403Z WARN  request queue depth=8879 (worker threads=8 all busy) cpu throttled",
+            "2026-09-02T03:09:09.718Z ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client req={id}",
+            "node_cpu_allocatable_free_cores{nodepool=\"aks-userpool-11223344-vmss\"} [cores]\n  2026-09-02T03:14:00Z  5.1"
+          ]
+        },
+        "actions": [
+          {
+            "action": "update_hpa",
+            "target": "hpa/tienda/inventario",
+            "params": {
+              "maxReplicas": 12
+            },
+            "reason": "Eliminar el tope que impide escalar: ceil(4 × 190 / 70) = 11 réplicas con las métricas actuales; máximo 12 proporciona un pequeño margen. Mantener minReplicas y objetivo de CPU. Las siete réplicas adicionales solicitarían 3,5 cores (500m cada una), dentro de los 5,1 cores libres agregados reportados. Verificar después el escalado efectivo, descenso del throttling y colas, y 5xx de api-ordenes por debajo del 1%. No reiniciar ni revertir la API víctima."
+          }
+        ],
+        "confidence": 0.96
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 5,
+  "submission": {
+    "root_cause": {
+      "component": "hpa/tienda/inventario",
+      "summary": "El HPA de inventario está limitado a 4 réplicas pese a una utilización de CPU del 190% sobre requests frente al objetivo del 70%, tras aumentar su tráfico de 150 a 312 req/s. La capacidad insuficiente provoca throttling y colas en inventario, agotando el timeout de 300 ms de api-ordenes y generando 503; la saturación ya existía antes de la revisión 42.",
+      "evidence": [
+        "http_requests_total_rate5m{namespace=\"tienda\", service=\"inventario\"} [req/s]\n  2026-09-02T02:10:00Z  150\n  2026-09-02T02:30:00Z  290\n  2026-09-02T03:14:00Z  312",
+        "resource cpu on pods  (as a percentage of request):  190% (950m) / 70%",
+        "Max replicas:                                          4",
+        "ScalingLimited  True    TooManyReplicas      the desired replica count is more than the maximum replica count",
+        "container_cpu_cfs_throttled_periods_ratio{namespace=\"tienda\", pod=\"inventario-5f4e3d2c1-m9n0o\", container=\"inventario\"} [ratio]\n  2026-09-02T02:10:00Z  0.03\n  2026-09-02T02:40:00Z  0.66\n  2026-09-02T03:14:00Z  0.81",
+        "2026-09-02T03:09:02.403Z WARN  request queue depth=8879 (worker threads=8 all busy) cpu throttled",
+        "2026-09-02T03:09:09.718Z ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client req={id}",
+        "node_cpu_allocatable_free_cores{nodepool=\"aks-userpool-11223344-vmss\"} [cores]\n  2026-09-02T03:14:00Z  5.1"
+      ]
+    },
+    "actions": [
+      {
+        "action": "update_hpa",
+        "target": "hpa/tienda/inventario",
+        "params": {
+          "maxReplicas": 12
+        },
+        "reason": "Eliminar el tope que impide escalar: ceil(4 × 190 / 70) = 11 réplicas con las métricas actuales; máximo 12 proporciona un pequeño margen. Mantener minReplicas y objetivo de CPU. Las siete réplicas adicionales solicitarían 3,5 cores (500m cada una), dentro de los 5,1 cores libres agregados reportados. Verificar después el escalado efectivo, descenso del throttling y colas, y 5xx de api-ordenes por debajo del 1%. No reiniciar ni revertir la API víctima."
+      }
+    ],
+    "confidence": 0.96
+  },
+  "usage": {
+    "input": 28720,
+    "output": 1458,
+    "total": 30178
+  },
+  "costUsd": 0.197389,
+  "costSource": "gateway",
+  "latencyMs": 26806,
+  "score": {
+    "total": 56,
+    "rootCause": 10,
+    "actions": 27,
+    "efficiency": 9,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 13 tool calls vs presupuesto 10 → 9/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/tienda/api-ordenes\", entregado \"hpa/tienda/inventario\" → 0/20",
+      "Palabras clave: 3/6 (inventario, 42, timeout) → 10/20",
+      "Acciones: F1 0.67 contra [update_hpa→hpa/tienda/inventario, rollback_deployment→deployment/tienda/api-ordenes] → 27/40"
+    ]
+  },
+  "finalText": "La evidencia apunta a saturación de `inventario`, no al despliegue de `api-ordenes`: el throttling ya era del 66% antes del rollout y ahora alcanza el 81%. Su HPA necesita ampliar capacidad, pero está bloqueado en cuatro réplicas; la API devuelve 503 al agotar el timeout de 300 ms.\n\nCon la utilización actual, el HPA calcularía unas 11 réplicas. Ampliaré el máximo a 12 en el plan, manteniendo el objetivo de CPU y sin reiniciar ni revertir la API. Las siete réplicas adicionales inicialmente previstas solicitarían 3,5 cores, frente a 5,1 cores libres reportados.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "e459980d"
+}

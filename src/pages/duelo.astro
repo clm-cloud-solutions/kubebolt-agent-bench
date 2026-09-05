@@ -1,0 +1,176 @@
+---
+import Base from '@/layouts/Base.astro';
+import { MODELS } from '@/lib/harness/models';
+import { SCENARIOS } from '@/scenarios';
+import { loadResults } from '@/lib/harness/store';
+import { READONLY } from '@/lib/harness/readonly';
+
+export const prerender = false;
+
+const batchId = Astro.url.searchParams.get('batch') ?? '';
+if (READONLY && !batchId) return Astro.redirect('/resultados', 302);
+const runsOfBatch = batchId ? (await loadResults()).filter((r) => r.batchId === batchId) : [];
+const saved = runsOfBatch.map((r) => ({ id: r.id, model: r.model.id, scenario: r.scenarioId, toolCalls: r.toolCalls, submission: r.submission, score: r.score, quality: r.quality?.overall, costUsd: r.costUsd, latencyMs: r.latencyMs, violations: r.catalogViolations }));
+// En solo lectura los desplegables muestran lo que hay en el lote (incluidos los ids @agent-sdk, que no están en MODELS).
+const savedModels = [...new Map(runsOfBatch.map((r) => [r.model.id, r.model.label])).entries()].map(([id, label]) => ({ id, label }));
+const savedScenarios = new Set(runsOfBatch.map((r) => r.scenarioId));
+const models = READONLY ? savedModels : MODELS.map((m) => ({ id: m.id, label: m.label }));
+const scenarios = READONLY ? SCENARIOS.filter((s) => savedScenarios.has(s.id)) : SCENARIOS;
+---
+
+<Base title="Duelo" description="Dos modelos, el mismo incidente, cara a cara">
+  <div class="page-head">
+    <div>
+      <h1>Dos modelos, el mismo incidente</h1>
+      <p>
+        Las trazas se alinean por paso: en qué punto uno va al log correcto y el otro se queda mirando la víctima.
+        {batchId ? <>Reproduciendo runs guardados del lote <code>{batchId}</code>{!READONLY && <>; también puedes lanzar en vivo</>}.</> : 'Lanza en vivo o abre esta vista desde un lote para reproducir runs guardados.'}
+      </p>
+    </div>
+  </div>
+
+  <div class="duel-form">
+    <label class="field">
+      <span>Escenario</span>
+      <select id="scenario">{scenarios.map((s) => <option value={s.id}>{s.title}</option>)}</select>
+    </label>
+    {!READONLY && (
+      <div class="field">
+        <span>Modo</span>
+        <div style="display:flex;gap:8px;align-items:center;height:38px">
+          <button type="button" class="seg active" data-mode="live" style="margin:0">En vivo</button>
+          <button type="button" class="seg" data-mode="saved" disabled={!saved.length}>Desde el lote</button>
+        </div>
+      </div>
+    )}
+    <label class="field">
+      <span>Modelo A</span>
+      <select id="a">{models.map((m, i) => <option value={m.id} selected={i === 0}>{m.label}</option>)}</select>
+    </label>
+    <label class="field">
+      <span>Modelo B</span>
+      <select id="b">{models.map((m, i) => <option value={m.id} selected={i === 1}>{m.label}</option>)}</select>
+    </label>
+    <div style="grid-column:1/-1;display:flex;justify-content:flex-end"><button class="btn" id="go">Enfrentar</button></div>
+  </div>
+
+  <div class="duel">
+    {['a', 'b'].map((side) => (
+      <div class="trace" id={`trace-${side}`}>
+        <div class="trace-head"><span class="pulse"></span><span id={`label-${side}`}>{side === 'a' ? 'Modelo A' : 'Modelo B'}</span></div>
+        <div class="trace-body" id={`body-${side}`}><div class="trace-empty">Sin ejecutar</div></div>
+        <div class="duel-score" id={`score-${side}`} hidden></div>
+      </div>
+    ))}
+  </div>
+
+  <script define:vars={{ saved, models, readonly: READONLY }}>
+    const $ = (s) => document.querySelector(s);
+    const labelOf = Object.fromEntries(models.map((m) => [m.id, m.label]));
+    const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const fmtInput = (i) => Object.entries(i).map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`).join('  ');
+    let mode = readonly ? 'saved' : 'live';
+    document.querySelectorAll('[data-mode]').forEach((b) =>
+      b.addEventListener('click', () => {
+        if (b.disabled) return;
+        mode = b.dataset.mode;
+        document.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('active', x === b));
+      }),
+    );
+
+    const events = { a: [], b: [] };
+    function render(side) {
+      const body = $(`#body-${side}`);
+      body.innerHTML = '';
+      for (const ev of events[side]) {
+        const div = document.createElement('div');
+        div.className = `ev ${ev.kind}`;
+        div.innerHTML = `<span class="step">${ev.step ? '#' + ev.step : ''}</span><span class="kind">${esc(ev.label)}</span><pre>${esc(ev.content)}</pre>`;
+        body.appendChild(div);
+      }
+      body.scrollTop = body.scrollHeight;
+    }
+    function push(side, kind, step, label, content) {
+      events[side].push({ kind, step, label, content });
+      render(side);
+    }
+    function showScore(side, r) {
+      const el = $(`#score-${side}`);
+      el.hidden = false;
+      el.innerHTML = `<div>Determinista<b>${r.score.total}</b></div><div>Calidad<b>${r.quality ?? '—'}</b></div><div>Coste · tiempo<b style="font-size:1rem">${r.costUsd != null ? '$' + r.costUsd.toFixed(3) : '—'} · ${(r.latencyMs / 1000).toFixed(0)}s</b></div>`;
+    }
+    function reset(side, model) {
+      events[side] = [];
+      render(side);
+      $(`#label-${side}`).textContent = labelOf[model] ?? model;
+      $(`#score-${side}`).hidden = true;
+      $(`#trace-${side}`).classList.remove('live');
+    }
+    function submissionText(s) {
+      return `${s.root_cause.component}\n${s.root_cause.summary}\n\n${s.actions.map((a) => `${a.action} → ${a.target}`).join('\n')}`;
+    }
+
+    function replay(side, run) {
+      let i = 0;
+      for (const c of run.toolCalls) {
+        i++;
+        if (c.name === 'submit_remediation' && run.submission) push(side, 'submission', i, 'entrega', submissionText(run.submission));
+        else push(side, 'call', i, c.name, fmtInput(c.input));
+      }
+      for (const v of run.violations) push(side, 'violation', '', 'catálogo', v);
+      showScore(side, { score: run.score, quality: run.quality, costUsd: run.costUsd, latencyMs: run.latencyMs });
+    }
+
+    async function live(side, model, scenario) {
+      $(`#trace-${side}`).classList.add('live');
+      try {
+        const res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, scenario }) });
+        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let idx;
+          while ((idx = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, idx).trim();
+            buf = buf.slice(idx + 1);
+            if (!line) continue;
+            const ev = JSON.parse(line);
+            if (ev.type === 'tool_call' && ev.name !== 'submit_remediation') push(side, 'call', ev.step + 1, ev.name, fmtInput(ev.input));
+            if (ev.type === 'violation') push(side, 'violation', '', 'catálogo', ev.message);
+            if (ev.type === 'submission') push(side, 'submission', '', 'entrega', submissionText(ev.submission));
+            if (ev.type === 'error') push(side, 'error', '', 'error', ev.message);
+            if (ev.type === 'done') showScore(side, { score: ev.result.score, quality: undefined, costUsd: ev.result.costUsd, latencyMs: ev.result.latencyMs });
+          }
+        }
+      } catch (err) {
+        push(side, 'error', '', 'error', err.message);
+      } finally {
+        $(`#trace-${side}`).classList.remove('live');
+      }
+    }
+
+    $('#go').addEventListener('click', async () => {
+      const scenario = $('#scenario').value;
+      const a = $('#a').value;
+      const b = $('#b').value;
+      reset('a', a);
+      reset('b', b);
+      $('#go').disabled = true;
+      if (mode === 'saved') {
+        for (const [side, model] of [['a', a], ['b', b]]) {
+          const run = saved.filter((r) => r.model === model && r.scenario === scenario).sort((x, y) => y.score.total - x.score.total)[0];
+          if (run) replay(side, run);
+          else push(side, 'error', '', 'lote', `No hay run de ${labelOf[model] ?? model} sobre ${scenario} en este lote`);
+        }
+        $('#go').disabled = false;
+      } else {
+        await Promise.all([live('a', a, scenario), live('b', b, scenario)]);
+        $('#go').disabled = false;
+      }
+    });
+  </script>
+</Base>

@@ -1,0 +1,242 @@
+{
+  "id": "9f2bf8d4-52df-4b62-aa27-a13493bec816",
+  "timestamp": "2026-09-02T22:53:38.014Z",
+  "model": {
+    "id": "openai/gpt-5.6-luna",
+    "label": "GPT-5.6 Luna",
+    "vendor": "OpenAI",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "spark-oom-airflow",
+  "scenarioTitle": "DAG de Airflow falla; el driver de Spark muere por OOM en otro cluster",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "orquestador",
+        "namespace": "airflow"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "orquestador",
+        "namespace": "airflow",
+        "object": "ventas"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark",
+        "object": "ventas"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "datos",
+        "kind": "sparkapplication",
+        "namespace": "spark",
+        "name": "ventas-diario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "datos",
+        "kind": "sparkapplication",
+        "namespace": "spark",
+        "name": "ventas-diario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark",
+        "pod": "ventas-diario-driver",
+        "container": "spark-kubernetes-driver",
+        "previous": false,
+        "tail": 300
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "orquestador",
+        "namespace": "airflow",
+        "pod": "airflow-worker-0",
+        "container": "worker",
+        "previous": false,
+        "tail": 300
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "sparkapplication/spark/ventas-diario",
+          "summary": "El driver de Spark se queda sin memoria Java al construir y emitir un broadcast de 1.9 GiB. La tarea de Airflow solo refleja el estado FAILED del SparkApplication; reintentar sin cambiar recursos repetirá el OOM.",
+          "evidence": [
+            "SparkApplication describe: \"Error Message:  driver container failed with ExitCode: 137, Reason: OOMKilled\"",
+            "Driver log: \"WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)\"",
+            "Driver log: \"java.lang.OutOfMemoryError: Java heap space\"",
+            "Driver log: \"Leyendo eventos_web: 41.2M filas (ayer: 0)\"",
+            "Spark events: \"SparkApplication ventas-diario failed: driver container failed with ExitCode: 137, Reason: OOMKilled (x3)\"",
+            "Airflow worker log: \"AirflowException: SparkApplication ventas-diario failed: FAILED\""
+          ]
+        },
+        "actions": [
+          {
+            "action": "patch_resources",
+            "target": "sparkapplication/spark/ventas-diario",
+            "params": {
+              "container": "driver",
+              "memory_request": "6g",
+              "memory_limit": "6g"
+            },
+            "reason": "Aumentar la memoria del driver por encima de los 3g configurados; el broadcast ya alcanza 1912.4 MiB y provoca OOM de heap durante la ejecución."
+          }
+        ],
+        "confidence": 0.98
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 3,
+  "submission": {
+    "root_cause": {
+      "component": "sparkapplication/spark/ventas-diario",
+      "summary": "El driver de Spark se queda sin memoria Java al construir y emitir un broadcast de 1.9 GiB. La tarea de Airflow solo refleja el estado FAILED del SparkApplication; reintentar sin cambiar recursos repetirá el OOM.",
+      "evidence": [
+        "SparkApplication describe: \"Error Message:  driver container failed with ExitCode: 137, Reason: OOMKilled\"",
+        "Driver log: \"WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)\"",
+        "Driver log: \"java.lang.OutOfMemoryError: Java heap space\"",
+        "Driver log: \"Leyendo eventos_web: 41.2M filas (ayer: 0)\"",
+        "Spark events: \"SparkApplication ventas-diario failed: driver container failed with ExitCode: 137, Reason: OOMKilled (x3)\"",
+        "Airflow worker log: \"AirflowException: SparkApplication ventas-diario failed: FAILED\""
+      ]
+    },
+    "actions": [
+      {
+        "action": "patch_resources",
+        "target": "sparkapplication/spark/ventas-diario",
+        "params": {
+          "container": "driver",
+          "memory_request": "6g",
+          "memory_limit": "6g"
+        },
+        "reason": "Aumentar la memoria del driver por encima de los 3g configurados; el broadcast ya alcanza 1912.4 MiB y provoca OOM de heap durante la ejecución."
+      }
+    ],
+    "confidence": 0.98
+  },
+  "usage": {
+    "input": 7744,
+    "output": 1317,
+    "total": 9061
+  },
+  "costUsd": 0.0022865999999999997,
+  "costSource": "gateway",
+  "latencyMs": 17506,
+  "score": {
+    "total": 100,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 10,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 8 tool calls (presupuesto 9) → 10/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"sparkapplication/spark/ventas-diario\", entregado \"sparkapplication/spark/ventas-diario\" → 20/20",
+      "Palabras clave: 6/6 (OOMKilled, 137, driver, memory, eventos_web, broadcast) → 20/20",
+      "Acciones: F1 1.00 contra [patch_resources→sparkapplication/spark/ventas-diario] → 40/40"
+    ]
+  },
+  "batchId": "ffc20254",
+  "quality": {
+    "judgeModel": "anthropic/claude-opus-5",
+    "dimensions": [
+      {
+        "id": "diagnostico",
+        "score": 5,
+        "rationale": "Identifica exactamente el OOM del driver de Spark en el cluster datos, sobre sparkapplication/spark/ventas-diario, y explica que Airflow solo refleja el fallo. Además conecta el aumento de volumen (41.2M filas, ayer 0) como disparador."
+      },
+      {
+        "id": "evidencia",
+        "score": 5,
+        "rationale": "Seis citas, todas verificadas en los datos del cluster, y cada una sostiene un eslabón de la cadena causal (ExitCode 137/OOMKilled, OutOfMemoryError, broadcast de 1.9 GiB, nueva fuente, excepción en Airflow)."
+      },
+      {
+        "id": "investigacion",
+        "score": 5,
+        "rationale": "Ruta eficiente y guiada por la evidencia: descarta Airflow, salta al cluster datos, describe y lee el manifiesto del SparkApplication y confirma con logs del driver, cerrando con el log del worker. 9 llamadas, justo en presupuesto."
+      },
+      {
+        "id": "remediacion",
+        "score": 5,
+        "rationale": "Una sola acción, patch_resources sobre el recurso raíz subiendo la memoria del driver a 6g, coherente con el ~5.5Gi necesario; no toca Airflow ni añade reinicios inútiles."
+      },
+      {
+        "id": "seguridad",
+        "score": 5,
+        "rationale": "Respeta el catálogo, evita las acciones que castigan a la víctima y limita el cambio al recurso causante; advierte explícitamente que reintentar sin cambiar recursos repetirá el OOM."
+      },
+      {
+        "id": "comunicacion",
+        "score": 5,
+        "rationale": "Resumen claro y accionable para un on-call, con la cadena causal explícita; la confianza de 0.98 es coherente con la evidencia directa de OOMKilled y heap. Menor detalle: menciona '3g configurados' frente a los 4Gi de límite del escenario, sin afectar la conclusión."
+      }
+    ],
+    "overall": 100,
+    "verdict": "Descartó rápidamente el falso culpable (Airflow) y localizó el OOM del driver de Spark en el cluster datos con evidencia verificada y bien encadenada, incluyendo el aumento de volumen como disparador. El plan es mínimo y proporcional: subir la memoria del driver en la SparkApplication, sin reinicios que culpen a la víctima. Única imprecisión menor es la cifra de memoria previa citada en el razonamiento; un SRE senior habría hecho prácticamente lo mismo, quizá notificando también al equipo de datos por el cambio de volumen.",
+    "evidenceGrounding": {
+      "cited": 6,
+      "found": 6,
+      "missing": []
+    },
+    "usage": {
+      "input": 4231,
+      "output": 873
+    },
+    "costUsd": 0.042980000000000004
+  }
+}

@@ -1,0 +1,136 @@
+---
+import Base from '@/layouts/Base.astro';
+import { loadResults } from '@/lib/harness/store';
+import { findScenario } from '@/scenarios';
+import { DIMENSIONS } from '@/lib/harness/judge';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+const run = (await loadResults()).find((r) => r.id === id);
+if (!run) return new Response('Run no encontrado', { status: 404 });
+const scenario = findScenario(run.scenarioId);
+const fmtInput = (i: Record<string, unknown>) =>
+  Object.entries(i).map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`).join('  ');
+const cost = run.costUsd == null ? '—' : `$${run.costUsd.toFixed(4)} (${run.costSource})`;
+---
+
+<Base title={`Run ${run.model.label} · ${run.scenarioId}`}>
+  <div class="page-head">
+    <div>
+      <h1>{run.model.label} sobre «{run.scenarioTitle}»</h1>
+      <p>{new Date(run.timestamp).toLocaleString('es-ES')} · <span class="mono">{run.model.id}</span></p>
+    </div>
+    <a class="btn ghost" href="/">Volver a resultados</a>
+  </div>
+
+  <section>
+    <div class="scorecard">
+      <div><div class="big">{run.score.total}<small> /100</small></div></div>
+      <div>
+        <div class="parts">
+          <div class="part">Causa raíz<b>{run.score.rootCause}</b></div>
+          <div class="part">Acciones<b>{run.score.actions}</b></div>
+          <div class="part">Eficiencia<b>{run.score.efficiency}</b></div>
+          <div class="part">Seguridad<b>{run.score.safety}</b></div>
+        </div>
+        <div class="meta">
+          <span>{run.toolCalls.length} tool calls</span>
+          <span>{run.steps} pasos</span>
+          <span>{(run.latencyMs / 1000).toFixed(1)}s</span>
+          <span>{run.usage.input.toLocaleString('es')} in / {run.usage.output.toLocaleString('es')} out tokens</span>
+          <span>coste {cost}</span>
+        </div>
+        {run.submission && (
+          <p class="note" style="margin-bottom:10px">
+            <strong style="color:var(--ink)">Causa raíz entregada:</strong> {run.submission.root_cause.component} — {run.submission.root_cause.summary}
+          </p>
+        )}
+        <ul class="details">{run.score.details.map((d) => <li>{d}</li>)}</ul>
+        {run.error && <p class="note" style="color:var(--coral);margin-top:10px">Error: {run.error}</p>}
+      </div>
+    </div>
+  </section>
+
+  {run.quality && (
+    <section>
+      <div class="section-head">
+        <h2>Calidad según el juez</h2>
+        <span class="hint mono">{run.quality.judgeModel}</span>
+      </div>
+      {run.quality.error ? (
+        <p class="note" style="color:var(--amber)">El juez no devolvió una evaluación válida: {run.quality.error}</p>
+      ) : (
+        <div class="scorecard">
+          <div><div class="big">{run.quality.overall}<small> /100</small></div></div>
+          <div>
+            <table class="dims" style="margin-bottom:12px">
+              <tbody>
+                {run.quality.dimensions.map((d) => (
+                  <tr>
+                    <td style="width:130px">{DIMENSIONS.find((x) => x.id === d.id)?.label ?? d.id}</td>
+                    <td class="num" style="width:70px">{d.score}<span class="dim-bar"><b style={`width:${((d.score - 1) / 4) * 100}%`}></b></span></td>
+                    <td style="color:var(--ink-2)">{d.rationale}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p class="verdict">{run.quality.verdict}</p>
+            <p class="note" style="margin-top:10px">
+              Citas verificadas: {run.quality.evidenceGrounding.found}/{run.quality.evidenceGrounding.cited} existen en el snapshot.
+              {run.quality.evidenceGrounding.missing.length > 0 && <> No encontradas: {run.quality.evidenceGrounding.missing.map((m) => <code>«{m}» </code>)}</>}
+            </p>
+          </div>
+        </div>
+      )}
+    </section>
+  )}
+
+  {run.submission && (
+    <section>
+      <div class="section-head"><h2>Plan entregado</h2></div>
+      <table>
+        <thead><tr><th>Acción</th><th>Target</th><th>Parámetros</th><th>Motivo</th></tr></thead>
+        <tbody>
+          {run.submission.actions.map((a) => (
+            <tr>
+              <td class="mono">{a.action}</td>
+              <td class="mono">{a.target}</td>
+              <td class="mono">{a.params ? JSON.stringify(a.params) : '—'}</td>
+              <td>{a.reason ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <h3 style="margin:18px 0 6px">Evidencia citada</h3>
+      <ul class="details">{run.submission.root_cause.evidence.map((e) => <li class="mono">{e}</li>)}</ul>
+    </section>
+  )}
+
+  <section>
+    <div class="section-head">
+      <h2>Traza de herramientas</h2>
+      {scenario && <span class="hint">Presupuesto del escenario: {scenario.truth.toolBudget} tool calls</span>}
+    </div>
+    <div class="trace">
+      <div class="trace-body" style="max-height:none">
+        {run.toolCalls.map((c, i) => (
+          <div class={`ev ${c.name === 'submit_remediation' ? 'submission' : 'call'}`}>
+            <span class="step">#{i + 1}</span>
+            <span class="kind">{c.name}{!c.ok && ' ✗'}</span>
+            <pre>{fmtInput(c.input)}<span style="color:var(--ink-3)">  {c.ms}ms</span></pre>
+          </div>
+        ))}
+        {run.catalogViolations.map((v) => (
+          <div class="ev violation"><span class="step"></span><span class="kind">catálogo</span><pre>{v}</pre></div>
+        ))}
+      </div>
+    </div>
+    {run.finalText && (
+      <div style="margin-top:14px">
+        <h3 style="margin-bottom:6px">Texto final del modelo</h3>
+        <pre class="note">{run.finalText}</pre>
+      </div>
+    )}
+  </section>
+</Base>

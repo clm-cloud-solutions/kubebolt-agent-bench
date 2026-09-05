@@ -1,0 +1,308 @@
+{
+  "id": "34dc8cd7-6c9d-4003-8104-cae19689b41a",
+  "timestamp": "2026-09-03T01:07:45.516Z",
+  "model": {
+    "id": "deepseek/deepseek-v4-pro-0813",
+    "label": "DeepSeek V4 Pro (0813)",
+    "vendor": "DeepSeek",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "two-causes-ordenes",
+  "scenarioTitle": "api-ordenes con 18 % de 5xx: dos causas que se suman",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-a1b2c",
+        "tail": 100,
+        "grep": "error|fatal|timeout|exception|redis|5xx|500|502|503",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-s3t4u",
+        "tail": 80,
+        "grep": "error|fatal|timeout|slow|exception|db|database|connection|pool",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-v5w6x",
+        "tail": 80,
+        "grep": "error|fatal|timeout|slow|exception|db|database|connection|pool",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "tail": 80,
+        "grep": "error|fatal|timeout|slow|exception|db|database|connection|pool",
+        "context": 2
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "object": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_usage_seconds_total",
+        "labels": {
+          "namespace": "tienda",
+          "pod": "inventario-5f4e3d2c1-m9n0o"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "node_cpu_allocatable_free_cores"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 6,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda",
+          "pod": "inventario-5f4e3d2c1-v5w6x"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 6,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "upstream_timeout_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 7,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "hpa/tienda/inventario",
+          "summary": "El servicio inventario está saturado por CPU throttling (limit=1 CPU con 8 worker threads, ratio de throttling CFS 0.81) y su HPA está capado en maxReplicas=4 cuando la demanda exige 9 réplicas, por lo que no puede escalar. inventario responde lento (>300ms) y api-ordenes, con timeout de 300ms y 0 reintentos hacia inventario, devuelve 503, disparando el 18% de 5xx.",
+          "evidence": [
+            "api-ordenes log: 'ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client'",
+            "api-ordenes log: 'WARN upstream inventario slow: p95=1420ms over last 60s (timeout=300ms exceeded by 31% of calls)'",
+            "inventario log: 'WARN request queue depth=7825 (worker threads=8 all busy) cpu throttled'",
+            "inventario log: 'GET /stock/3081 200 1257ms (slow: cpu throttled)'",
+            "HPA event: 'invalid metrics (0 invalid out of 1); desired replicas 9 exceeds maxReplicas 4 — capped'",
+            "metric container_cpu_cfs_throttled_periods_ratio{inventario}=0.81",
+            "metric upstream_timeout_total_rate5m{api-ordenes->inventario}=18.9 req/s",
+            "metric node_cpu_allocatable_free_cores=5.1 (hay capacidad para escalar)"
+          ]
+        },
+        "actions": [
+          {
+            "action": "update_hpa",
+            "target": "hpa/tienda/inventario",
+            "params": {
+              "maxReplicas": 9
+            },
+            "reason": "El HPA desea 9 réplicas pero está capado en maxReplicas=4; subir el tope permite escalar y repartir la carga (hay 5.1 cores libres en el nodepool)."
+          },
+          {
+            "action": "patch_resources",
+            "target": "deployment/tienda/inventario",
+            "params": {
+              "container": "inventario",
+              "cpu_limit": "2"
+            },
+            "reason": "El límite de 1 CPU con 8 worker threads provoca throttling severo (ratio 0.81); subir el límite a 2 CPUs reduce el throttling por pod."
+          }
+        ],
+        "confidence": 0.85
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 8,
+  "submission": {
+    "root_cause": {
+      "component": "hpa/tienda/inventario",
+      "summary": "El servicio inventario está saturado por CPU throttling (limit=1 CPU con 8 worker threads, ratio de throttling CFS 0.81) y su HPA está capado en maxReplicas=4 cuando la demanda exige 9 réplicas, por lo que no puede escalar. inventario responde lento (>300ms) y api-ordenes, con timeout de 300ms y 0 reintentos hacia inventario, devuelve 503, disparando el 18% de 5xx.",
+      "evidence": [
+        "api-ordenes log: 'ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client'",
+        "api-ordenes log: 'WARN upstream inventario slow: p95=1420ms over last 60s (timeout=300ms exceeded by 31% of calls)'",
+        "inventario log: 'WARN request queue depth=7825 (worker threads=8 all busy) cpu throttled'",
+        "inventario log: 'GET /stock/3081 200 1257ms (slow: cpu throttled)'",
+        "HPA event: 'invalid metrics (0 invalid out of 1); desired replicas 9 exceeds maxReplicas 4 — capped'",
+        "metric container_cpu_cfs_throttled_periods_ratio{inventario}=0.81",
+        "metric upstream_timeout_total_rate5m{api-ordenes->inventario}=18.9 req/s",
+        "metric node_cpu_allocatable_free_cores=5.1 (hay capacidad para escalar)"
+      ]
+    },
+    "actions": [
+      {
+        "action": "update_hpa",
+        "target": "hpa/tienda/inventario",
+        "params": {
+          "maxReplicas": 9
+        },
+        "reason": "El HPA desea 9 réplicas pero está capado en maxReplicas=4; subir el tope permite escalar y repartir la carga (hay 5.1 cores libres en el nodepool)."
+      },
+      {
+        "action": "patch_resources",
+        "target": "deployment/tienda/inventario",
+        "params": {
+          "container": "inventario",
+          "cpu_limit": "2"
+        },
+        "reason": "El límite de 1 CPU con 8 worker threads provoca throttling severo (ratio 0.81); subir el límite a 2 CPUs reduce el throttling por pod."
+      }
+    ],
+    "confidence": 0.85
+  },
+  "usage": {
+    "input": 72438,
+    "output": 8192,
+    "total": 80630
+  },
+  "costUsd": 0.08776152000000001,
+  "costSource": "gateway",
+  "latencyMs": 49041,
+  "score": {
+    "total": 51,
+    "rootCause": 13,
+    "actions": 20,
+    "efficiency": 8,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 15 tool calls vs presupuesto 10 → 8/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/tienda/api-ordenes\", entregado \"hpa/tienda/inventario\" → 0/20",
+      "Palabras clave: 4/6 (maxReplicas, inventario, 42, timeout) → 13/20",
+      "Acciones: F1 0.50 contra [update_hpa→hpa/tienda/inventario, rollback_deployment→deployment/tienda/api-ordenes] → 20/40"
+    ]
+  },
+  "finalText": "He confirmado la cadena causal completa. La evidencia es concluyente:\n\n1. **`api-ordenes`** devuelve 503s explícitamente por timeouts contra su upstream `inventario` (timeout de 300ms, 0 reintentos).\n2. **`inventario`** está saturado por **CPU throttling** (ratio de throttling CFS = 0.81, logs \"worker threads=8 all busy\", \"cpu throttled\", colas de miles de peticiones).\n3. El **HPA de `inventario`** quiere escalar a **9 réplicas** pero está **capado en maxReplicas=4**.\n4. Hay capacidad disponible en el nodepool (5.1 cores libres), así que el escalado es viable.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "f3dfd2bc"
+}

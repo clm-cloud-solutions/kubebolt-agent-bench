@@ -1,0 +1,287 @@
+{
+  "id": "475ad12f-b1ad-4127-bcc4-ab557fd952ad",
+  "timestamp": "2026-09-03T01:43:00.135Z",
+  "model": {
+    "id": "deepseek/deepseek-v4-pro-0813",
+    "label": "DeepSeek V4 Pro (0813)",
+    "vendor": "DeepSeek",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "runbook-trap-cache",
+  "scenarioTitle": "catalogo-api con 3 % de aciertos de caché: el runbook culpa a redis",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "pod",
+        "namespace": "catalogo",
+        "name": "redis-catalogo-0"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "redis-catalogo-0",
+        "tail": 200,
+        "grep": "error|oom|maxmemory|frag"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "redis-catalogo-0",
+        "tail": 100
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "catalogo",
+        "name": "catalogo-api-8c7b6a5f4"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "catalogo-api-9d8c7b6a5-q1w2e",
+        "tail": 200,
+        "grep": "redis|cache|miss|error"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "catalogo-api-9d8c7b6a5-q1w2e",
+        "tail": 30,
+        "grep": "GET /categorias"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_memory_working_set_bytes",
+        "labels": {
+          "namespace": "catalogo",
+          "pod": "redis-catalogo-0"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "catalogo",
+        "name": "catalogo-api"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "redis_evicted_keys_total",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 5,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "cache_hit_ratio",
+        "labels": {
+          "namespace": "catalogo"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 5,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "catalogo",
+        "pod": "catalogo-api-9d8c7b6a5-q1w2e",
+        "tail": 60,
+        "grep": "cache=(hit|miss)"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 5,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 6,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/catalogo/catalogo-api",
+          "summary": "El rollout de catalogo-api (revisión 31, imagen 5.4.0, hace ~22 min) introdujo un CACHE_KEY_TEMPLATE que incluye {{request_id}}: cat:v4:{{request_id}}:producto:{{id}}. Cada petición de producto genera una clave única, por lo que la caché de productos nunca acierta (solo acierta /categorias, que usa clave estática), provocando caída del hit ratio al 3%, latencia p95 a 1.9s y carga ×5 en postgres. Redis no es la causa: no hay presión de memoria ni evicciones.",
+          "evidence": [
+            "Events: '22m Normal ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3' y '20m ... Scaled down replica set catalogo-api-8c7b6a5f4 to 0'",
+            "Deployment manifest: env CACHE_KEY_TEMPLATE = \"cat:v4:{{request_id}}:producto:{{id}}\" (incluye un request_id único por petición)",
+            "Métrica cache_hit_ratio{namespace=catalogo,service=catalogo-api}: 0.92 (02:50) -> 0.12 (02:55) -> 0.03 (03:00)",
+            "Logs api: 'GET /productos/8791 200 630ms cache=miss key=cat:v4:req-a9c73a:producto:7480 pg=599ms' — todos los /productos aparecen cache=miss; 'GET /categorias 200 86ms cache=hit key=cat:v4:categorias' — los hits solo ocurren en la clave estática",
+            "Redis INFO: 'used_memory_human:1.56G maxmemory_human:2.00G mem_fragmentation_ratio:1.61 evicted_keys:0 keyspace_hits:402 keyspace_misses:13808' — sin evicciones ni OOM; redis_evicted_keys_total = 0"
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/catalogo/catalogo-api",
+            "params": {
+              "toRevision": 30
+            },
+            "reason": "El cambio de CACHE_KEY_TEMPLATE en la revisión 31 rompe el acierto de caché de productos al incluir request_id. Volver a la revisión anterior restaura la clave de caché correcta."
+          }
+        ],
+        "confidence": 0.93
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 7,
+  "submission": {
+    "root_cause": {
+      "component": "deployment/catalogo/catalogo-api",
+      "summary": "El rollout de catalogo-api (revisión 31, imagen 5.4.0, hace ~22 min) introdujo un CACHE_KEY_TEMPLATE que incluye {{request_id}}: cat:v4:{{request_id}}:producto:{{id}}. Cada petición de producto genera una clave única, por lo que la caché de productos nunca acierta (solo acierta /categorias, que usa clave estática), provocando caída del hit ratio al 3%, latencia p95 a 1.9s y carga ×5 en postgres. Redis no es la causa: no hay presión de memoria ni evicciones.",
+      "evidence": [
+        "Events: '22m Normal ScalingReplicaSet deployment/catalogo-api Scaled up replica set catalogo-api-9d8c7b6a5 to 3' y '20m ... Scaled down replica set catalogo-api-8c7b6a5f4 to 0'",
+        "Deployment manifest: env CACHE_KEY_TEMPLATE = \"cat:v4:{{request_id}}:producto:{{id}}\" (incluye un request_id único por petición)",
+        "Métrica cache_hit_ratio{namespace=catalogo,service=catalogo-api}: 0.92 (02:50) -> 0.12 (02:55) -> 0.03 (03:00)",
+        "Logs api: 'GET /productos/8791 200 630ms cache=miss key=cat:v4:req-a9c73a:producto:7480 pg=599ms' — todos los /productos aparecen cache=miss; 'GET /categorias 200 86ms cache=hit key=cat:v4:categorias' — los hits solo ocurren en la clave estática",
+        "Redis INFO: 'used_memory_human:1.56G maxmemory_human:2.00G mem_fragmentation_ratio:1.61 evicted_keys:0 keyspace_hits:402 keyspace_misses:13808' — sin evicciones ni OOM; redis_evicted_keys_total = 0"
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/catalogo/catalogo-api",
+        "params": {
+          "toRevision": 30
+        },
+        "reason": "El cambio de CACHE_KEY_TEMPLATE en la revisión 31 rompe el acierto de caché de productos al incluir request_id. Volver a la revisión anterior restaura la clave de caché correcta."
+      }
+    ],
+    "confidence": 0.93
+  },
+  "usage": {
+    "input": 49473,
+    "output": 11242,
+    "total": 60715
+  },
+  "costUsd": 0.06724476,
+  "costSource": "gateway",
+  "latencyMs": 163412,
+  "score": {
+    "total": 92,
+    "rootCause": 37,
+    "actions": 40,
+    "efficiency": 5,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 16 tool calls vs presupuesto 8 → 5/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/catalogo/catalogo-api\", entregado \"deployment/catalogo/catalogo-api\" → 20/20",
+      "Palabras clave: 5/6 (CACHE_KEY_TEMPLATE, request_id, 31, miss, evict) → 17/20",
+      "Acciones: F1 1.00 contra [rollback_deployment→deployment/catalogo/catalogo-api] → 40/40"
+    ]
+  },
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "5e27823b"
+}

@@ -1,0 +1,320 @@
+{
+  "id": "8cfc7312-abe4-48ec-b851-d532fdba0d02",
+  "timestamp": "2026-09-03T01:07:37.997Z",
+  "batchId": "ext-anthropic-02",
+  "model": {
+    "id": "anthropic/claude-opus-5@agent-sdk",
+    "label": "claude-opus-5 (Agent SDK)",
+    "vendor": "Anthropic",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "two-causes-ordenes",
+  "scenarioTitle": "api-ordenes con 18 % de 5xx: dos causas que se suman",
+  "ok": true,
+  "steps": 15,
+  "toolCalls": [
+    {
+      "step": 1,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "api-ordenes-8c7d6e5f4-a1b2c",
+        "tail": 60,
+        "grep": "error|timeout|5[0-9][0-9]|refused|fatal",
+        "context": 1
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 4,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "hpa",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 5,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "api-ordenes"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 6,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 7,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "tienda",
+        "name": "api-ordenes-7b6c5d4e3"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 8,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "tienda",
+        "name": "inventario"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 9,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_seconds_total",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 10,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "tienda",
+        "pod": "inventario-5f4e3d2c1-m9n0o",
+        "tail": 40,
+        "grep": "error|slow|latency|timeout|throttl|pool"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 11,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 12,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "tienda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 13,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "node_cpu_allocatable_free_cores"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 14,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/tienda/inventario",
+          "summary": "El servicio upstream 'inventario' está saturado de CPU: consume 950m contra un limit de 1 core, con 81% de periodos throttled, y su HPA no puede compensarlo porque maxReplicas=4 mientras el cálculo pide 9 réplicas. Eso dispara latencias de 1.1-1.9s en /stock. El despliegue de api-ordenes rev 42 amplificó el fallo: fija INVENTARIO_TIMEOUT_MS=300 con INVENTARIO_RETRIES=0, un presupuesto por debajo de la latencia normal del upstream, convirtiendo respuestas lentas en 503 duros (5xx pasó de 4.6 a 18.2 req/s justo tras el rollout).",
+          "evidence": [
+            "inventario: 'WARN request queue depth=9964 (worker threads=8 all busy) cpu throttled'",
+            "inventario: 'INFO GET /stock/4692 200 1883ms (slow: cpu throttled)'",
+            "container_cpu_cfs_throttled_periods_ratio{pod=\"inventario-5f4e3d2c1-m9n0o\"}: 0.03 (02:10) -> 0.66 (02:40) -> 0.81 (03:14)",
+            "hpa/inventario describe: 'resource cpu on pods (as a percentage of request): 190% (950m) / 70%' con 'Min replicas: 2 / Max replicas: 4'",
+            "hpa/inventario: 'ScalingLimited True TooManyReplicas the desired replica count is more than the maximum replica count'",
+            "evento: 'FailedComputeMetricsReplicas ... desired replicas 9 exceeds maxReplicas 4 — capped (x38)'",
+            "deployment/inventario: 'Requests: cpu: 500m' / 'Limits: cpu: 1' y último rollout hace 12d (no cambió con el incidente)",
+            "api-ordenes: 'ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client'",
+            "deployment/api-ordenes rev 42: 'INVENTARIO_TIMEOUT_MS: \"300\"' y 'INVENTARIO_RETRIES: \"0\"', mientras los logs muestran upstream sano en 'upstream=inventario:682ms', 'upstream=inventario:896ms'",
+            "http_requests_total_rate5m{service=\"api-ordenes\",code=\"5xx\"}: 4.6 (02:55) -> 18.2 (03:00) tras el rollout de las 02:49; tráfico total plano en 105-106 req/s",
+            "http_requests_total_rate5m{service=\"inventario\"}: 150 (02:10) -> 312 (03:14), duplicando la carga del upstream"
+          ]
+        },
+        "actions": [
+          {
+            "action": "patch_resources",
+            "target": "deployment/tienda/inventario",
+            "params": {
+              "container": "inventario",
+              "cpu_limit": "2",
+              "cpu_request": "500m"
+            },
+            "reason": "El contenedor está pegado a su limit de 1 core con 81% de periodos throttled y cola de 9k peticiones sobre 8 worker threads. Subir el limit a 2 cores elimina el throttling inmediato y devuelve /stock a latencias sub-300ms. Se mantiene el request en 500m para no alterar el denominador del HPA."
+          },
+          {
+            "action": "update_hpa",
+            "target": "hpa/tienda/inventario",
+            "params": {
+              "minReplicas": 4,
+              "maxReplicas": 10
+            },
+            "reason": "El HPA lleva 38 ciclos capado: calcula 9 réplicas y maxReplicas=4 lo impide, por lo que no puede absorber el aumento de tráfico de 150 a 312 req/s. Con 10 réplicas x 500m de request caben en las 5.1 cores libres del nodepool y el autoscaler puede llegar a 6 nodos."
+          },
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/tienda/api-ordenes",
+            "params": {
+              "toRevision": 41
+            },
+            "reason": "Mitigación rápida del pico de 5xx: la rev 42 introduce un timeout de 300ms con 0 reintentos hacia inventario, por debajo de la latencia habitual del upstream (400-900ms incluso en condiciones normales), lo que convierte lentitud en 503 al cliente. Volver a la rev 41 restaura el presupuesto de timeout anterior mientras se recupera la capacidad de inventario."
+          },
+          {
+            "action": "escalate_to_human",
+            "target": "deployment/tienda/api-ordenes",
+            "params": {
+              "team": "tienda-backend"
+            },
+            "reason": "Corrección de fondo fuera del catálogo: revisar en código/config el presupuesto de timeout y la política de reintentos hacia inventario (300ms/0 retries es inferior al p50 del upstream) y añadir circuit breaker o degradación con cache en vez de propagar 503. También revisar el origen del salto de tráfico de inventario de 150 a 312 req/s para dimensionar el HPA de forma permanente."
+          }
+        ],
+        "confidence": 0.85
+      },
+      "ok": true,
+      "ms": 1
+    }
+  ],
+  "submission": {
+    "root_cause": {
+      "component": "deployment/tienda/inventario",
+      "summary": "El servicio upstream 'inventario' está saturado de CPU: consume 950m contra un limit de 1 core, con 81% de periodos throttled, y su HPA no puede compensarlo porque maxReplicas=4 mientras el cálculo pide 9 réplicas. Eso dispara latencias de 1.1-1.9s en /stock. El despliegue de api-ordenes rev 42 amplificó el fallo: fija INVENTARIO_TIMEOUT_MS=300 con INVENTARIO_RETRIES=0, un presupuesto por debajo de la latencia normal del upstream, convirtiendo respuestas lentas en 503 duros (5xx pasó de 4.6 a 18.2 req/s justo tras el rollout).",
+      "evidence": [
+        "inventario: 'WARN request queue depth=9964 (worker threads=8 all busy) cpu throttled'",
+        "inventario: 'INFO GET /stock/4692 200 1883ms (slow: cpu throttled)'",
+        "container_cpu_cfs_throttled_periods_ratio{pod=\"inventario-5f4e3d2c1-m9n0o\"}: 0.03 (02:10) -> 0.66 (02:40) -> 0.81 (03:14)",
+        "hpa/inventario describe: 'resource cpu on pods (as a percentage of request): 190% (950m) / 70%' con 'Min replicas: 2 / Max replicas: 4'",
+        "hpa/inventario: 'ScalingLimited True TooManyReplicas the desired replica count is more than the maximum replica count'",
+        "evento: 'FailedComputeMetricsReplicas ... desired replicas 9 exceeds maxReplicas 4 — capped (x38)'",
+        "deployment/inventario: 'Requests: cpu: 500m' / 'Limits: cpu: 1' y último rollout hace 12d (no cambió con el incidente)",
+        "api-ordenes: 'ERROR inventario timeout after 300ms (retries=0, no retry) -> responding 503 to client'",
+        "deployment/api-ordenes rev 42: 'INVENTARIO_TIMEOUT_MS: \"300\"' y 'INVENTARIO_RETRIES: \"0\"', mientras los logs muestran upstream sano en 'upstream=inventario:682ms', 'upstream=inventario:896ms'",
+        "http_requests_total_rate5m{service=\"api-ordenes\",code=\"5xx\"}: 4.6 (02:55) -> 18.2 (03:00) tras el rollout de las 02:49; tráfico total plano en 105-106 req/s",
+        "http_requests_total_rate5m{service=\"inventario\"}: 150 (02:10) -> 312 (03:14), duplicando la carga del upstream"
+      ]
+    },
+    "actions": [
+      {
+        "action": "patch_resources",
+        "target": "deployment/tienda/inventario",
+        "params": {
+          "container": "inventario",
+          "cpu_limit": "2",
+          "cpu_request": "500m"
+        },
+        "reason": "El contenedor está pegado a su limit de 1 core con 81% de periodos throttled y cola de 9k peticiones sobre 8 worker threads. Subir el limit a 2 cores elimina el throttling inmediato y devuelve /stock a latencias sub-300ms. Se mantiene el request en 500m para no alterar el denominador del HPA."
+      },
+      {
+        "action": "update_hpa",
+        "target": "hpa/tienda/inventario",
+        "params": {
+          "minReplicas": 4,
+          "maxReplicas": 10
+        },
+        "reason": "El HPA lleva 38 ciclos capado: calcula 9 réplicas y maxReplicas=4 lo impide, por lo que no puede absorber el aumento de tráfico de 150 a 312 req/s. Con 10 réplicas x 500m de request caben en las 5.1 cores libres del nodepool y el autoscaler puede llegar a 6 nodos."
+      },
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/tienda/api-ordenes",
+        "params": {
+          "toRevision": 41
+        },
+        "reason": "Mitigación rápida del pico de 5xx: la rev 42 introduce un timeout de 300ms con 0 reintentos hacia inventario, por debajo de la latencia habitual del upstream (400-900ms incluso en condiciones normales), lo que convierte lentitud en 503 al cliente. Volver a la rev 41 restaura el presupuesto de timeout anterior mientras se recupera la capacidad de inventario."
+      },
+      {
+        "action": "escalate_to_human",
+        "target": "deployment/tienda/api-ordenes",
+        "params": {
+          "team": "tienda-backend"
+        },
+        "reason": "Corrección de fondo fuera del catálogo: revisar en código/config el presupuesto de timeout y la política de reintentos hacia inventario (300ms/0 retries es inferior al p50 del upstream) y añadir circuit breaker o degradación con cache en vez de propagar 503. También revisar el origen del salto de tráfico de inventario de 150 a 312 req/s para dimensionar el HPA de forma permanente."
+      }
+    ],
+    "confidence": 0.85
+  },
+  "catalogViolations": [],
+  "stopReason": "submitted",
+  "usage": {
+    "input": 89860,
+    "output": 7111,
+    "total": 96971
+  },
+  "costUsd": 0.40325349999999993,
+  "costSource": "gateway",
+  "latencyMs": 89498,
+  "score": {
+    "total": 68,
+    "rootCause": 17,
+    "actions": 32,
+    "efficiency": 9,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 13 tool calls vs presupuesto 10 → 9/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/tienda/api-ordenes\", entregado \"deployment/tienda/inventario\" → 0/20",
+      "Palabras clave: 5/6 (maxReplicas, inventario, INVENTARIO_RETRIES, 42, timeout) → 17/20",
+      "Acciones: F1 0.80 contra [update_hpa→hpa/tienda/inventario, rollback_deployment→deployment/tienda/api-ordenes] (sin contar escalate_to_human) → 32/40"
+    ]
+  },
+  "finalText": "## Diagnóstico\n\n**La alerta apunta a `api-ordenes`, pero el culpable es `inventario`.**\n\n### Cadena causal\n\n1. **Saturación real (causa raíz):** `inventario` consume 950m de CPU contra un `limit: 1` core. El ratio de throttling pasó de 0.03 → 0.66 → 0.81 en una hora. Sus logs lo dicen literalmente: `request queue depth=9964 (worker threads=8 all busy) cpu throttled` y respuestas de `/stock` en 1.1–1.9s.\n\n2. **El HPA no puede rescatarlo:** lleva 38 ciclos capado — `desired replicas 9 exceeds maxReplicas 4 — capped`. El deployment de `inventario` no se toca desde hace 12 días; lo que cambió fue la carga (150 → 312 req/s).\n\n3. **El despliegue amplificó, no originó:** la rev 42 fija `INVENTARIO_TIMEOUT_MS=300` con `INVENTARIO_RETRIES=0`. Ese presupuesto está *por debajo* de la latencia normal del upstream (se ven `upstream=inventario:682ms` y `896ms` en peticiones que devuelven 200). Resultado: `inventario timeout after 300ms (retries=0, no retry) -> responding 503`.\n\n### Detalle que descarta la hipótesis obvia\nLos 5xx ya subían **antes** del rollout: 0.4 → 4.1 req/s a las 02:45, con el deploy a las 02:49. El rollout llevó la cifra de 4.6 a 18.2, pero un rollback solo no habría resuelto nada: habría dejado la saturación intacta y el p99 alto. Por eso el rollback va en el plan como mitigación, no como arreglo.\n\n### Plan entregado\n1. `patch_resources` en `inventario` → `cpu_limit: 2` (mantiene request en 500m para no falsear el denominador del HPA).\n2. `update_hpa` → `maxReplicas: 10` (caben: 5.1 cores libres y autoscaler hasta 6 nodos).\n3. `rollback_deployment` de `api-ordenes` a rev 41 → corta el sangrado de 503 mientras el upstream recupera capacidad.\n4. `escalate_to_human` a tienda-backend → el timeout/retry budget y la ausencia de circuit breaker son cambios de código, y falta explicar el salto de tráfico de 150 a 312 req/s.\n\nConfianza: 0.85. La incertidumbre está en el valor exacto de `INVENTARIO_TIMEOUT_MS` en la rev 41 — el ReplicaSet anterior ya fue recolectado, así que infiero la regresión por comparación entre el timeout configurado y las latencias upstream observadas en peticiones exitosas, no por diff directo.",
+  "nudged": false
+}

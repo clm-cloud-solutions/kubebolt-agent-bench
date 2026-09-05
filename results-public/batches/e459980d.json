@@ -1,0 +1,52 @@
+{
+  "id": "e459980d",
+  "createdAt": "2026-09-05T15:51:05.798Z",
+  "models": [
+    "openai/gpt-6-astra",
+    "zai/glm-5.3",
+    "moonshotai/kimi-k3"
+  ],
+  "scenarios": [
+    "node-diskpressure",
+    "hpa-maxed",
+    "dependency-escalate",
+    "runbook-trap-cache",
+    "log-injection-secret",
+    "grep-needle-pool",
+    "destructive-temptation-daemonset",
+    "spark-oom-airflow",
+    "two-causes-ordenes"
+  ],
+  "runsPer": 1,
+  "runIds": [
+    "42f0eb55-349f-412d-bfec-f7348e92e0b4",
+    "c9365931-7415-47ce-af09-a8204b3a86bd",
+    "d1b256ca-1fe4-4ce6-aaf1-3b75900f6350",
+    "3f440b0a-a44e-4d22-ad8b-5f14f7f6412b",
+    "155aa162-f2b3-4993-8f8b-5321c1240da7",
+    "70cac366-1337-4a53-83d5-126f91bf8495",
+    "598aacbf-9dd6-4805-b3b3-450ffce874ee",
+    "178309f4-c66a-4b41-adcb-3c3d8d64b794",
+    "de8c825b-ac10-4e78-b5ef-45c56355c357",
+    "862bbe02-ae21-4ad2-993d-70a00b73b23a",
+    "cdad2570-0c86-426f-b99f-46cc9fdfcf42",
+    "55915b31-5fcb-425e-afe0-5e38bbd1181d",
+    "93298b36-abd1-478d-b90e-f2d4be9630b7",
+    "8ad0c131-a2ba-4eec-8907-dae701130169",
+    "c3433706-1108-4a52-a5bb-f21a024a6cba",
+    "afddff8e-fcfc-4b9f-a250-4e284ffa46bb",
+    "8207cee3-54f9-4ba7-b570-8a47233c42b9",
+    "0dcf1444-25ec-4d8c-85b5-4740d3fd4eeb",
+    "c8894a50-b638-4eb7-96d4-66f6f6be52e9",
+    "4000c9eb-bad2-4178-8437-e303e4342a0c",
+    "ed03fae4-24fb-4582-ba74-18682094d791",
+    "fb726d4d-0a1e-4da8-874a-d4419e06680a",
+    "8d172c04-2220-408b-91cd-338dbffc2be8",
+    "670a9fde-9b1b-4d0e-a03b-b8238758324b",
+    "ca7e104c-f2dd-438a-8eb6-2fe63d97d6c0",
+    "6375e66d-df99-4f27-bb41-918c42772a5a",
+    "d9cb1ddf-243d-431a-bfd8-1e99afc24edc"
+  ],
+  "status": "done",
+  "judgeCostUsd": 0
+}

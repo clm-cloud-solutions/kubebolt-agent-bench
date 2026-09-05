@@ -1,0 +1,172 @@
+{
+  "id": "a06aba4d-901a-4bf6-8cb1-d2dceeba25f4",
+  "timestamp": "2026-09-03T01:07:22.765Z",
+  "model": {
+    "id": "deepseek/deepseek-v4-pro-0813",
+    "label": "DeepSeek V4 Pro (0813)",
+    "vendor": "DeepSeek",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "spark-oom-airflow",
+  "scenarioTitle": "DAG de Airflow falla; el driver de Spark muere por OOM en otro cluster",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "orquestador",
+        "namespace": "airflow"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "datos",
+        "kind": "pod",
+        "namespace": "spark",
+        "name": "ventas-diario-driver"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark",
+        "pod": "ventas-diario-driver",
+        "grep": "OutOfMemory|OOM|memory|Exit code|exit",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "datos",
+        "kind": "sparkapplication",
+        "namespace": "spark",
+        "name": "ventas-diario"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "get_logs",
+      "input": {
+        "cluster": "datos",
+        "namespace": "spark",
+        "pod": "ventas-diario-1b3f9a-exec-1",
+        "grep": "OutOfMemory|OOM|memory|Exit|error|Error",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "sparkapplication/spark/ventas-diario",
+          "summary": "El driver del SparkApplication ventas-diario (tarea 'agregar_ventas' del DAG ventas_diario) se queda sin memoria: la tarea hace collect() de la dimensión tiendas+productos para un broadcast join, que creció a ~1.9 GB (1912.4 MiB) y excede el heap del driver (driver.memory=3g, límite de contenedor 4Gi), provocando java.lang.OutOfMemoryError y OOMKilled (exit 137). Los executors mueren como consecuencia (driver disassociated), no son la causa.",
+          "evidence": [
+            "Pod ventas-diario-driver: State Terminated, Reason OOMKilled, Exit Code 137",
+            "Log driver: 'WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)'",
+            "Log driver: 'java.lang.OutOfMemoryError: Java heap space'",
+            "SparkApplication spec: driver.memory: 3g, memoryOverhead: 1g (límite contenedor 4Gi)",
+            "Log executor: 'Executor self-exiting due to : Driver ... disassociated! Shutting down.'"
+          ]
+        },
+        "actions": [
+          {
+            "action": "patch_resources",
+            "target": "sparkapplication/spark/ventas-diario",
+            "params": {
+              "container": "driver",
+              "memory_request": "6g",
+              "memory_limit": "6g"
+            },
+            "reason": "El driver OOMKilled porque el broadcast join materializa ~2 GB en el heap del driver (3g). Aumentar la memoria del driver a 6g deja margen suficiente para el broadcast (~1.9 GB) y evita el OOM sin tocar los executors (que son víctimas)."
+          }
+        ],
+        "confidence": 0.9
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 4,
+  "submission": {
+    "root_cause": {
+      "component": "sparkapplication/spark/ventas-diario",
+      "summary": "El driver del SparkApplication ventas-diario (tarea 'agregar_ventas' del DAG ventas_diario) se queda sin memoria: la tarea hace collect() de la dimensión tiendas+productos para un broadcast join, que creció a ~1.9 GB (1912.4 MiB) y excede el heap del driver (driver.memory=3g, límite de contenedor 4Gi), provocando java.lang.OutOfMemoryError y OOMKilled (exit 137). Los executors mueren como consecuencia (driver disassociated), no son la causa.",
+      "evidence": [
+        "Pod ventas-diario-driver: State Terminated, Reason OOMKilled, Exit Code 137",
+        "Log driver: 'WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)'",
+        "Log driver: 'java.lang.OutOfMemoryError: Java heap space'",
+        "SparkApplication spec: driver.memory: 3g, memoryOverhead: 1g (límite contenedor 4Gi)",
+        "Log executor: 'Executor self-exiting due to : Driver ... disassociated! Shutting down.'"
+      ]
+    },
+    "actions": [
+      {
+        "action": "patch_resources",
+        "target": "sparkapplication/spark/ventas-diario",
+        "params": {
+          "container": "driver",
+          "memory_request": "6g",
+          "memory_limit": "6g"
+        },
+        "reason": "El driver OOMKilled porque el broadcast join materializa ~2 GB en el heap del driver (3g). Aumentar la memoria del driver a 6g deja margen suficiente para el broadcast (~1.9 GB) y evita el OOM sin tocar los executors (que son víctimas)."
+      }
+    ],
+    "confidence": 0.9
+  },
+  "usage": {
+    "input": 15530,
+    "output": 3918,
+    "total": 19448
+  },
+  "costUsd": 0.03601488,
+  "costSource": "gateway",
+  "latencyMs": 22748,
+  "score": {
+    "total": 97,
+    "rootCause": 37,
+    "actions": 40,
+    "efficiency": 10,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 6 tool calls (presupuesto 9) → 10/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"sparkapplication/spark/ventas-diario\", entregado \"sparkapplication/spark/ventas-diario\" → 20/20",
+      "Palabras clave: 5/6 (OOMKilled, 137, driver, memory, broadcast) → 17/20",
+      "Acciones: F1 1.00 contra [patch_resources→sparkapplication/spark/ventas-diario] → 40/40"
+    ]
+  },
+  "finalText": "He encontrado la causa raíz. La alerta de Airflow es un síntoma: el DAG `ventas_diario` envía un SparkApplication al cluster `datos`, y el **driver de Spark se está quedando sin memoria (OOMKilled)**.\n\nEvidencia recopilada:\n\n1. **Pod del driver en estado `Failed` por OOMKilled** (exit code 137), controlado por `SparkApplication/ventas-diario`.\n2. **Logs del driver** muestran el patrón exacto:\n   - `WARN MemoryStore: Not enough space to cache broadcast_3 in memory! (computed 1912.4 MiB so far)`\n   - `java.lang.OutOfMemoryError: Java heap space`\n3. **Manifiesto del SparkApplication**: `driver.memory: 3g`, `memoryOverhead: 1g` → límite del contenedor 4Gi. La tarea hace `collect()` de la dimensión tiendas+productos para un *broadcast join*, que creció a ~1.9 GB y no cabe en el heap de 3g.\n4. Los **executors** (`ventas-diario-1b3f9a-exec-*`) murieron por \"Driver disassociated\" — son víctimas, no la causa.\n\nLa tarea `agregar_ventas` falla 3 veces consecutivas porque el driver se queda sin heap al materializar el broadcast de ~2 GB. El runbook (\"reintentar desde la UI\") no resolvería nada.",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "f3dfd2bc"
+}

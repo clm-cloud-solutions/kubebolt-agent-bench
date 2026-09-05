@@ -1,0 +1,258 @@
+{
+  "id": "28133edc-6654-4205-ad99-e7158ec3c62f",
+  "timestamp": "2026-09-05T15:53:38.674Z",
+  "batchId": "ext-anthropic-04",
+  "model": {
+    "id": "anthropic/claude-fable-5-1@agent-sdk",
+    "label": "claude-fable-5-1 (Agent SDK)",
+    "vendor": "Anthropic",
+    "family": "frontera",
+    "verified": true
+  },
+  "scenarioId": "node-diskpressure",
+  "scenarioTitle": "Nodo con DiskPressure y pods desalojados",
+  "ok": true,
+  "steps": 14,
+  "toolCalls": [
+    {
+      "step": 1,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "node",
+        "namespace": "-",
+        "name": "aks-userpool-11223344-vmss000002"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 2,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "object": "aks-userpool-11223344-vmss000002"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 3,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-es"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "node_filesystem_avail_bytes",
+        "labels": {
+          "node": "aks-userpool-11223344-vmss000002"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 5,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_fs_usage_bytes",
+        "labels": {
+          "node": "aks-userpool-11223344-vmss000002"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 6,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "deployment",
+        "namespace": "reportes",
+        "name": "reportes-worker"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 7,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "reportes",
+        "pod": "reportes-worker-6d7e8f9a0-c3vqn",
+        "tail": 200
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 8,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-es",
+        "namespace": "reportes"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 9,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "pod",
+        "namespace": "reportes",
+        "name": "reportes-worker-6d7e8f9a0-k8mzw"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 10,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-es",
+        "metric": "container_fs_writes_bytes_total",
+        "labels": {
+          "namespace": "reportes"
+        }
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 11,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "replicaset",
+        "namespace": "reportes",
+        "name": "reportes-worker-5c6d7e8f9"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 12,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-es",
+        "kind": "pod",
+        "namespace": "catalogo",
+        "name": "catalogo-api-6b7c8d9e0-p8kzr"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 13,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "deployment/reportes/reportes-worker",
+          "summary": "El rollout de reportes-worker a la revisión 8 (hace ~2h, imagen worker:4.8.1) lleva LOG_LEVEL=debug y el worker vuelca a stdout dumps SQL de 131 KB y frames AMQP a ~2.900 líneas/s. Los logs del contenedor han escrito ~22,6 GB en 2h sobre el disco raíz del nodo aks-userpool-11223344-vmss000002, agotando el ephemeral-storage (de 92 GB libres a 612 MB) y disparando DiskPressure; el kubelet desalojó api-pagos y catalogo-api, que son víctimas (84Ki de uso), no culpables.",
+          "evidence": [
+            "Evicted pod/reportes-worker-6d7e8f9a0-k8mzw: \"The node was low on resource: ephemeral-storage. Threshold quantity: 12836451328, available: 612368384. Container worker was using 9126Mi, request is 0\"",
+            "container_fs_writes_bytes_total{pod=\"reportes-worker-6d7e8f9a0-c3vqn\"}: 00:50Z 120000000 -> 01:30Z 7400000000 -> 02:30Z 18900000000 -> 02:50Z 22600000000",
+            "node_filesystem_avail_bytes{node=\"aks-userpool-11223344-vmss000002\", mountpoint=\"/\"}: 00:40Z 92400000000 -> 02:30Z 1900000000 -> 02:50Z 612368384",
+            "Deployment reportes-worker revision \"8\": env LOG_LEVEL=debug; evento 2h \"Scaled up replica set reportes-worker-6d7e8f9a0 to 2 / Scaled down replica set reportes-worker-5c6d7e8f9 to 0\"",
+            "Logs reportes-worker-6d7e8f9a0-c3vqn: {\"level\":\"debug\",\"msg\":\"sql\",\"query\":\"SELECT * FROM ventas WHERE fecha >= $1\",\"rows\":18211,\"dump\":\"<...131072 chars omitidos...>\"} [... ~2.900 líneas/segundo a este nivel ...]",
+            "Evicted pod/catalogo/catalogo-api-6b7c8d9e0-p8kzr: \"Container api was using 84Ki, request is 0\" (víctima, no origen)",
+            "FailedScheduling pod/reportes-worker-6d7e8f9a0-p2xlt: \"1 node(s) had untolerated taint {node.kubernetes.io/disk-pressure: }, 2 Insufficient cpu\""
+          ]
+        },
+        "actions": [
+          {
+            "action": "rollback_deployment",
+            "target": "deployment/reportes/reportes-worker",
+            "params": {
+              "toRevision": 7
+            },
+            "reason": "Revierte la revisión 8 que introdujo LOG_LEVEL=debug (inicio de la caída de disco coincide con el rollout de hace 2h). Al reemplazar el pod c3vqn, el kubelet elimina sus ~9 GB de logs y el nodo sale de DiskPressure; el taint desaparece y el pod Pending p2xlt y los reemplazos de catalogo/pagos podrán programarse. Un restart no serviría porque la variable seguiría en el spec."
+          },
+          {
+            "action": "escalate_to_human",
+            "target": "deployment/reportes/reportes-worker",
+            "params": {
+              "team": "reportes"
+            },
+            "reason": "Corregir en origen (repo/GitOps) LOG_LEVEL=info en el manifiesto de worker:4.8.1 para que el siguiente despliegue no reintroduzca el debug; valorar que el código no vuelque 'dump' de 131 KB por consulta ni en debug, y definir requests/limits de ephemeral-storage y rotación de logs en el nodo (containerLogMaxSize) para que un pod no pueda volver a tumbar el nodo entero."
+          }
+        ],
+        "confidence": 0.9
+      },
+      "ok": true,
+      "ms": 2
+    }
+  ],
+  "submission": {
+    "root_cause": {
+      "component": "deployment/reportes/reportes-worker",
+      "summary": "El rollout de reportes-worker a la revisión 8 (hace ~2h, imagen worker:4.8.1) lleva LOG_LEVEL=debug y el worker vuelca a stdout dumps SQL de 131 KB y frames AMQP a ~2.900 líneas/s. Los logs del contenedor han escrito ~22,6 GB en 2h sobre el disco raíz del nodo aks-userpool-11223344-vmss000002, agotando el ephemeral-storage (de 92 GB libres a 612 MB) y disparando DiskPressure; el kubelet desalojó api-pagos y catalogo-api, que son víctimas (84Ki de uso), no culpables.",
+      "evidence": [
+        "Evicted pod/reportes-worker-6d7e8f9a0-k8mzw: \"The node was low on resource: ephemeral-storage. Threshold quantity: 12836451328, available: 612368384. Container worker was using 9126Mi, request is 0\"",
+        "container_fs_writes_bytes_total{pod=\"reportes-worker-6d7e8f9a0-c3vqn\"}: 00:50Z 120000000 -> 01:30Z 7400000000 -> 02:30Z 18900000000 -> 02:50Z 22600000000",
+        "node_filesystem_avail_bytes{node=\"aks-userpool-11223344-vmss000002\", mountpoint=\"/\"}: 00:40Z 92400000000 -> 02:30Z 1900000000 -> 02:50Z 612368384",
+        "Deployment reportes-worker revision \"8\": env LOG_LEVEL=debug; evento 2h \"Scaled up replica set reportes-worker-6d7e8f9a0 to 2 / Scaled down replica set reportes-worker-5c6d7e8f9 to 0\"",
+        "Logs reportes-worker-6d7e8f9a0-c3vqn: {\"level\":\"debug\",\"msg\":\"sql\",\"query\":\"SELECT * FROM ventas WHERE fecha >= $1\",\"rows\":18211,\"dump\":\"<...131072 chars omitidos...>\"} [... ~2.900 líneas/segundo a este nivel ...]",
+        "Evicted pod/catalogo/catalogo-api-6b7c8d9e0-p8kzr: \"Container api was using 84Ki, request is 0\" (víctima, no origen)",
+        "FailedScheduling pod/reportes-worker-6d7e8f9a0-p2xlt: \"1 node(s) had untolerated taint {node.kubernetes.io/disk-pressure: }, 2 Insufficient cpu\""
+      ]
+    },
+    "actions": [
+      {
+        "action": "rollback_deployment",
+        "target": "deployment/reportes/reportes-worker",
+        "params": {
+          "toRevision": 7
+        },
+        "reason": "Revierte la revisión 8 que introdujo LOG_LEVEL=debug (inicio de la caída de disco coincide con el rollout de hace 2h). Al reemplazar el pod c3vqn, el kubelet elimina sus ~9 GB de logs y el nodo sale de DiskPressure; el taint desaparece y el pod Pending p2xlt y los reemplazos de catalogo/pagos podrán programarse. Un restart no serviría porque la variable seguiría en el spec."
+      },
+      {
+        "action": "escalate_to_human",
+        "target": "deployment/reportes/reportes-worker",
+        "params": {
+          "team": "reportes"
+        },
+        "reason": "Corregir en origen (repo/GitOps) LOG_LEVEL=info en el manifiesto de worker:4.8.1 para que el siguiente despliegue no reintroduzca el debug; valorar que el código no vuelque 'dump' de 131 KB por consulta ni en debug, y definir requests/limits de ephemeral-storage y rotación de logs en el nodo (containerLogMaxSize) para que un pod no pueda volver a tumbar el nodo entero."
+      }
+    ],
+    "confidence": 0.9
+  },
+  "catalogViolations": [],
+  "stopReason": "submitted",
+  "usage": {
+    "input": 45911,
+    "output": 4894,
+    "total": 50805
+  },
+  "costUsd": 0.5199677500000001,
+  "costSource": "gateway",
+  "latencyMs": 58703,
+  "score": {
+    "total": 98,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 8,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 12 tool calls vs presupuesto 8 → 8/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"deployment/reportes/reportes-worker\", entregado \"deployment/reportes/reportes-worker\" → 20/20",
+      "Palabras clave: 6/6 (LOG_LEVEL, debug, ephemeral-storage, revision, logs, reportes-worker) → 20/20",
+      "Acciones: F1 1.00 contra [rollback_deployment→deployment/reportes/reportes-worker] (sin contar escalate_to_human) → 40/40"
+    ]
+  },
+  "finalText": "Plan entregado. Resumen del incidente:\n\n**Causa raíz:** `deployment/reportes/reportes-worker` (revisión 8, imagen `worker:4.8.1`, desplegada hace ~2h) lleva `LOG_LEVEL=debug` y vuelca a stdout dumps SQL de 131 KB por consulta más frames AMQP a ~2.900 líneas/s. Los logs del contenedor escribieron ~22,6 GB en 2h en el disco raíz de `aks-userpool-11223344-vmss000002` (92 GB libres → 612 MB), lo que activó `DiskPressure` y las evicciones.\n\n**Cadena de evidencia:**\n- `container_fs_writes_bytes_total` del pod `c3vqn`: 120 MB (00:50Z) → 22,6 GB (02:50Z), arrancando justo tras el rollout.\n- `node_filesystem_avail_bytes` cae en paralelo hasta 612 MB.\n- Evento de evicción: `Container worker was using 9126Mi, request is 0`.\n- `catalogo-api` y `api-pagos` desalojados usaban 84Ki: son víctimas, no culpables, por lo que no se tocan.\n\n**Acciones propuestas:**\n1. `rollback_deployment` de `reportes-worker` a la revisión 7: elimina la configuración debug y, al reemplazar el pod, el kubelet libera sus ~9 GB de logs; el nodo sale de DiskPressure, se retira el taint y el pod Pending `p2xlt` puede programarse. Un simple restart no bastaría porque la variable seguiría en el spec.\n2. `escalate_to_human` (equipo reportes): fijar `LOG_LEVEL=info` en el origen GitOps, revisar que el código no vuelque `dump` completos ni en debug, y añadir requests/limits de ephemeral-storage y rotación de logs (`containerLogMaxSize`) para que un pod no pueda volver a tumbar un nodo entero.\n\nConfianza: 0,9.",
+  "nudged": false
+}

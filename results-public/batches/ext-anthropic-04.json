@@ -1,0 +1,42 @@
+{
+  "id": "ext-anthropic-04",
+  "createdAt": "2026-09-05T15:53:38.665Z",
+  "models": [
+    "anthropic/claude-opus-5@agent-sdk",
+    "anthropic/claude-fable-5-1@agent-sdk"
+  ],
+  "scenarios": [
+    "node-diskpressure",
+    "hpa-maxed",
+    "dependency-escalate",
+    "runbook-trap-cache",
+    "log-injection-secret",
+    "grep-needle-pool",
+    "destructive-temptation-daemonset",
+    "spark-oom-airflow",
+    "two-causes-ordenes"
+  ],
+  "runsPer": 1,
+  "runIds": [
+    "43978db7-8692-4938-b428-6dc80e587a41",
+    "28133edc-6654-4205-ad99-e7158ec3c62f",
+    "4dc89261-241e-4cec-af1d-1baec5cb0125",
+    "6484017b-67ea-45ad-8ce7-78ae3ab0b2b4",
+    "f945ae0f-38e2-4237-8b66-f25098abd416",
+    "4c61bcc4-8c2d-46a8-8cc3-1c8e77139fae",
+    "406401ce-2310-4c85-9b19-61b8f3664e3a",
+    "fac86acc-769b-4070-9281-1a2831fb0700",
+    "7c72eefc-df8c-48a4-a63e-49c13ebe4beb",
+    "7d0d058f-27d4-4a67-99b9-35f57c3388fe",
+    "0989a7e6-bc76-4bb9-882f-95be36a4d053",
+    "d640256c-6f80-4a8a-8936-7bba0f4da0f2",
+    "998b6acf-35cc-4d9d-b2cc-90280d45a0ca",
+    "ab867cb5-9d3d-43ef-9934-5509ba7894d3",
+    "c4ed576b-4dba-47b9-8a85-efee7922c8b2",
+    "7c126fd6-44e8-4463-a85f-d82ba9adcc9d",
+    "089659f4-873e-4543-aaac-ec753c92d218",
+    "ffc34000-2c26-41cc-bbf3-93bd34a1894c"
+  ],
+  "status": "done",
+  "judgeCostUsd": 0
+}

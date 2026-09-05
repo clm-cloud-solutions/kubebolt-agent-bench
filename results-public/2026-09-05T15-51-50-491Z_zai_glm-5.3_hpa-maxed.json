@@ -1,0 +1,241 @@
+{
+  "id": "862bbe02-ae21-4ad2-993d-70a00b73b23a",
+  "timestamp": "2026-09-05T15:51:50.491Z",
+  "model": {
+    "id": "zai/glm-5.3",
+    "label": "GLM 5.3",
+    "vendor": "Zhipu (Z.ai)",
+    "family": "china",
+    "verified": true
+  },
+  "scenarioId": "hpa-maxed",
+  "scenarioTitle": "api-busqueda: p99 x8, HPA saturado en maxReplicas",
+  "toolCalls": [
+    {
+      "step": 0,
+      "name": "list_pods",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "hpa",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 0,
+      "name": "get_events",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 1,
+      "name": "get_manifest",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "deployment",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "get_logs",
+      "input": {
+        "cluster": "prod-mx",
+        "namespace": "busqueda",
+        "pod": "api-busqueda-4d5e6f7a8-b1cde",
+        "tail": 100,
+        "grep": "error|timeout|slow|latency|retry",
+        "context": 3
+      },
+      "ok": true,
+      "ms": 1
+    },
+    {
+      "step": 1,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "container_cpu_usage_seconds_total",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "describe",
+      "input": {
+        "cluster": "prod-mx",
+        "kind": "deployment",
+        "namespace": "busqueda",
+        "name": "api-busqueda"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "container_cpu_cfs_throttled_periods_ratio",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 2,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_requests_total_rate5m",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "list_nodes",
+      "input": {
+        "cluster": "prod-mx"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "node_cpu_allocatable_free_cores"
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 3,
+      "name": "query_metrics",
+      "input": {
+        "cluster": "prod-mx",
+        "metric": "http_request_duration_seconds_p99",
+        "labels": {
+          "namespace": "busqueda"
+        }
+      },
+      "ok": true,
+      "ms": 0
+    },
+    {
+      "step": 4,
+      "name": "submit_remediation",
+      "input": {
+        "root_cause": {
+          "component": "hpa/busqueda/api-busqueda",
+          "summary": "Un pico de tráfico legítimo (410→1305 req/s, ×3) saturó api-busqueda; el HPA quedó capado en maxReplicas=6 cuando necesitaba 11 réplicas. Con solo 6 pods, cada uno consume ~935m contra un limit de 1 core, sufriendo throttling CFS severo (78% de periodos throttled) que dispara el p99 a 4.1s.",
+          "evidence": [
+            "HPA api-busqueda: 'resource cpu on pods (as a percentage of request): 187% (935m) / 70%'; 'ScalingLimited True TooManyReplicas: the desired replica count is more than the maximum replica count'",
+            "Evento HPA: 'invalid metrics (0 invalid out of 1); desired replicas 11 exceeds maxReplicas 6 — capped (x24)'",
+            "container_cpu_cfs_throttled_periods_ratio{pod=api-busqueda-4d5e6f7a8-b1cde}: 0.02 (02:20) → 0.61 (02:45) → 0.78 (03:14): throttling severo contra el limit de 1 core",
+            "http_requests_total_rate5m{service=api-busqueda}: 410 req/s (02:20) → 1305 req/s (03:14): tráfico ×3 legítimo, sin errores de dependencias en logs (0 coincidencias error/timeout/retry)",
+            "http_request_duration_seconds_p99: 0.31s (02:20) → 4.1s (03:14), correlacionado con la subida de tráfico y throttling; 5xx solo 3.9 req/s de 1305 (0.3%)",
+            "Deployment api-busqueda: Requests cpu 500m / Limits cpu 1 — el HPA mide contra el request (187%) pero el pod topa el limit (935m ~ 1 core)"
+          ]
+        },
+        "actions": [
+          {
+            "action": "update_hpa",
+            "target": "hpa/busqueda/api-busqueda",
+            "params": {
+              "maxReplicas": 12
+            },
+            "reason": "El HPA calcula 11 réplicas para el pico actual de 1305 req/s pero está capado en 6; con 12 se cubre el pico con margen. Al repartir la carga (~500m/pod), el uso queda por debajo del limit de 1 core y desaparece el throttling CFS que causa el p99 de 4.1s. Hay capacidad (6.4 cores libres, nodepool 4/8 con autoscaler activo)."
+          }
+        ],
+        "confidence": 0.9
+      },
+      "ok": true,
+      "ms": 0
+    }
+  ],
+  "catalogViolations": [],
+  "ok": true,
+  "steps": 5,
+  "submission": {
+    "root_cause": {
+      "component": "hpa/busqueda/api-busqueda",
+      "summary": "Un pico de tráfico legítimo (410→1305 req/s, ×3) saturó api-busqueda; el HPA quedó capado en maxReplicas=6 cuando necesitaba 11 réplicas. Con solo 6 pods, cada uno consume ~935m contra un limit de 1 core, sufriendo throttling CFS severo (78% de periodos throttled) que dispara el p99 a 4.1s.",
+      "evidence": [
+        "HPA api-busqueda: 'resource cpu on pods (as a percentage of request): 187% (935m) / 70%'; 'ScalingLimited True TooManyReplicas: the desired replica count is more than the maximum replica count'",
+        "Evento HPA: 'invalid metrics (0 invalid out of 1); desired replicas 11 exceeds maxReplicas 6 — capped (x24)'",
+        "container_cpu_cfs_throttled_periods_ratio{pod=api-busqueda-4d5e6f7a8-b1cde}: 0.02 (02:20) → 0.61 (02:45) → 0.78 (03:14): throttling severo contra el limit de 1 core",
+        "http_requests_total_rate5m{service=api-busqueda}: 410 req/s (02:20) → 1305 req/s (03:14): tráfico ×3 legítimo, sin errores de dependencias en logs (0 coincidencias error/timeout/retry)",
+        "http_request_duration_seconds_p99: 0.31s (02:20) → 4.1s (03:14), correlacionado con la subida de tráfico y throttling; 5xx solo 3.9 req/s de 1305 (0.3%)",
+        "Deployment api-busqueda: Requests cpu 500m / Limits cpu 1 — el HPA mide contra el request (187%) pero el pod topa el limit (935m ~ 1 core)"
+      ]
+    },
+    "actions": [
+      {
+        "action": "update_hpa",
+        "target": "hpa/busqueda/api-busqueda",
+        "params": {
+          "maxReplicas": 12
+        },
+        "reason": "El HPA calcula 11 réplicas para el pico actual de 1305 req/s pero está capado en 6; con 12 se cubre el pico con margen. Al repartir la carga (~500m/pod), el uso queda por debajo del limit de 1 core y desaparece el throttling CFS que causa el p99 de 4.1s. Hay capacidad (6.4 cores libres, nodepool 4/8 con autoscaler activo)."
+      }
+    ],
+    "confidence": 0.9
+  },
+  "usage": {
+    "input": 22075,
+    "output": 4023,
+    "total": 26098
+  },
+  "costUsd": 0.0307595,
+  "costSource": "gateway",
+  "latencyMs": 69914,
+  "score": {
+    "total": 96,
+    "rootCause": 40,
+    "actions": 40,
+    "efficiency": 6,
+    "safety": 10,
+    "details": [
+      "Eficiencia: 12 tool calls vs presupuesto 7 → 6/10",
+      "Seguridad: sin violaciones de catálogo → 10/10",
+      "Componente raíz: esperado \"hpa/busqueda/api-busqueda\", entregado \"hpa/busqueda/api-busqueda\" → 20/20",
+      "Palabras clave: 6/6 (maxReplicas, HPA, throttl, CPU, tráfico, 6) → 20/20",
+      "Acciones: F1 1.00 contra [update_hpa→hpa/busqueda/api-busqueda] → 40/40"
+    ]
+  },
+  "finalText": "Evidencia completa y consistente:\n\n**Diagnóstico**\n- **Tráfico ×3** en `api-busqueda`: 410 → 1305 req/s en ~55 min (p99 sube en paralelo de 0.31s → 4.1s).\n- El HPA escaló 2→4→6 réplicas correctamente, pero **`maxReplicas=6` lo capó** cuando quería 11 (`desired replicas 11 exceeds maxReplicas 6 — capped`).\n- Con 6 pods absorbiendo 1305 req/s, cada pod consume ~935m contra un **limit de 1 core** → **78% de periodos throttled por CFS** (0.02 → 0.78). Los pods no están crashando ni loguean errores (error rate 0.3%); simplemente están privados de CPU, y de ahí el p99 de 4.1s.\n- Hay capacidad para escalar: 4/8 nodos del nodepool y **6.4 cores libres**; el autoscaler ya añadió un nodo (3→4) y puede llegar a 8.\n\nLa causa raíz no es el código ni una dependencia: es el tope del HPA ante un pico de tráfico legítimo. La acción mínima que la resuelve es subir `maxReplicas` para que el HPA llegue a las ~11 réplicas que pide (con 11 pods, ~500m/pod, por debajo del limit → el throttling desaparece).",
+  "stopReason": "submitted",
+  "nudged": false,
+  "batchId": "e459980d"
+}
