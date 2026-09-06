@@ -10,7 +10,7 @@ export const prerender = false;
 const batchId = Astro.url.searchParams.get('batch') ?? '';
 if (READONLY && !batchId) return Astro.redirect('/resultados', 302);
 const runsOfBatch = batchId ? (await loadResults()).filter((r) => r.batchId === batchId) : [];
-const saved = runsOfBatch.map((r) => ({ id: r.id, model: r.model.id, scenario: r.scenarioId, toolCalls: r.toolCalls, submission: r.submission, score: r.score, quality: r.quality?.overall, costUsd: r.costUsd, latencyMs: r.latencyMs, violations: r.catalogViolations }));
+const saved = runsOfBatch.map((r) => ({ id: r.id, model: r.model.id, scenario: r.scenarioId, toolCalls: r.toolCalls, submission: r.submission, score: r.score, quality: r.quality?.overall, costUsd: r.costUsd, latencyMs: r.latencyMs, usage: r.usage, violations: r.catalogViolations }));
 // En solo lectura los desplegables muestran lo que hay en el lote (incluidos los ids @agent-sdk, que no están en MODELS).
 const savedModels = [...new Map(runsOfBatch.map((r) => [r.model.id, r.model.label])).entries()].map(([id, label]) => ({ id, label }));
 const savedScenarios = new Set(runsOfBatch.map((r) => r.scenarioId));
@@ -94,10 +94,11 @@ const scenarios = READONLY ? SCENARIOS.filter((s) => savedScenarios.has(s.id)) :
       events[side].push({ kind, step, label, content });
       render(side);
     }
+    const fmtTok = (n) => (!(n > 0) ? '—' : n >= 1000 ? `${(n / 1000).toLocaleString('es', { maximumFractionDigits: 1 })}k` : String(Math.round(n)));
     function showScore(side, r) {
       const el = $(`#score-${side}`);
       el.hidden = false;
-      el.innerHTML = `<div>Determinista<b>${r.score.total}</b></div><div>Calidad<b>${r.quality ?? '—'}</b></div><div>Coste · tiempo<b style="font-size:1rem">${r.costUsd != null ? '$' + r.costUsd.toFixed(3) : '—'} · ${(r.latencyMs / 1000).toFixed(0)}s</b></div>`;
+      el.innerHTML = `<div>Determinista<b>${r.score.total}</b></div><div>Calidad<b>${r.quality ?? '—'}</b></div><div>Coste · tiempo<b style="font-size:1rem">${r.costUsd != null ? '$' + r.costUsd.toFixed(3) : '—'} · ${(r.latencyMs / 1000).toFixed(0)}s</b></div><div>Tokens in · out<b style="font-size:1rem">${fmtTok(r.usage?.input)} · ${fmtTok(r.usage?.output)}</b></div>`;
     }
     function reset(side, model) {
       events[side] = [];
@@ -118,7 +119,7 @@ const scenarios = READONLY ? SCENARIOS.filter((s) => savedScenarios.has(s.id)) :
         else push(side, 'call', i, c.name, fmtInput(c.input));
       }
       for (const v of run.violations) push(side, 'violation', '', 'catálogo', v);
-      showScore(side, { score: run.score, quality: run.quality, costUsd: run.costUsd, latencyMs: run.latencyMs });
+      showScore(side, { score: run.score, quality: run.quality, costUsd: run.costUsd, latencyMs: run.latencyMs, usage: run.usage });
     }
 
     async function live(side, model, scenario) {
@@ -143,7 +144,7 @@ const scenarios = READONLY ? SCENARIOS.filter((s) => savedScenarios.has(s.id)) :
             if (ev.type === 'violation') push(side, 'violation', '', 'catálogo', ev.message);
             if (ev.type === 'submission') push(side, 'submission', '', 'entrega', submissionText(ev.submission));
             if (ev.type === 'error') push(side, 'error', '', 'error', ev.message);
-            if (ev.type === 'done') showScore(side, { score: ev.result.score, quality: undefined, costUsd: ev.result.costUsd, latencyMs: ev.result.latencyMs });
+            if (ev.type === 'done') showScore(side, { score: ev.result.score, quality: undefined, costUsd: ev.result.costUsd, latencyMs: ev.result.latencyMs, usage: ev.result.usage });
           }
         }
       } catch (err) {

@@ -21,6 +21,7 @@ const judgeCompetes = !!batch.judgeModel && batch.models.includes(batch.judgeMod
 const hasQuality = agg.some((m) => m.quality);
 
 const fmtCost = (c?: number) => (c == null ? '—' : c < 0.01 ? `$${c.toFixed(4)}` : `$${c.toFixed(3)}`);
+const fmtTokens = (n?: number) => (n == null || !(n > 0) ? '—' : n >= 1000 ? `${(n / 1000).toLocaleString('es', { maximumFractionDigits: 1 })}k` : n.toFixed(0));
 const heat = (v?: number) => (v == null ? 'heat-0' : v >= 75 ? 'heat-3' : v >= 50 ? 'heat-2' : 'heat-1');
 const barClass = (v: number) => (v >= 75 ? '' : v >= 50 ? 'mid' : 'low');
 // mejor run juzgado por modelo, para mostrar un veredicto representativo
@@ -52,10 +53,11 @@ const sampleVerdict = (modelId: string) =>
       <h2>Métricas deterministas</h2>
       <span class="hint">Mismas reglas para todos: componente raíz, F1 de acciones, presupuesto de consultas, catálogo.</span>
     </div>
+    <div class="table-scroll">
     <table>
       <thead>
         <tr>
-          <th>Modelo</th><th>Score</th><th class="num">Causa</th><th class="num">Acciones</th><th class="num">Coste/run</th><th class="num">Latencia</th><th class="num">Tool calls</th><th class="num">Violaciones</th>
+          <th>Modelo</th><th>Score</th><th class="num">Causa</th><th class="num">Acciones</th><th class="num">Coste/run</th><th class="num">Latencia</th><th class="num">Tool calls</th><th class="num" title="Media por run sin error: tokens de entrada · tokens generados. Debajo, tokens generados por tool call.">Tokens/run</th><th class="num">Violaciones</th>
         </tr>
       </thead>
       <tbody>
@@ -68,11 +70,13 @@ const sampleVerdict = (modelId: string) =>
             <td class="num">{fmtCost(m.avgCost)}</td>
             <td class="num">{(m.avgLatencyMs / 1000).toFixed(1)}s</td>
             <td class="num">{m.avgToolCalls.toFixed(1)}</td>
+            <td class="num">{fmtTokens(m.avgTokensIn)} in · {fmtTokens(m.avgTokensOut)} out{m.avgToolCalls > 0 && <span class="sub">{fmtTokens(m.avgTokensOut / m.avgToolCalls)} out por llamada</span>}</td>
             <td class="num">{m.violations}</td>
           </tr>
         ))}
       </tbody>
     </table>
+    </div>
   </section>
 
   <section>
@@ -174,7 +178,7 @@ const sampleVerdict = (modelId: string) =>
     </div>
     <table>
       <thead>
-        <tr><th>Modelo</th><th>Escenario</th><th class="num">Determ.</th><th class="num">Calidad</th><th>Plan entregado</th><th class="num">Coste</th><th class="num">Tiempo</th></tr>
+        <tr><th>Modelo</th><th>Escenario</th><th class="num">Determ.</th><th class="num">Calidad</th><th>Plan entregado</th><th class="num">Coste</th><th class="num">Tiempo</th><th class="num" title="tokens de entrada · tokens generados">Tokens</th></tr>
       </thead>
       <tbody>
         {runs.sort((a, b) => a.model.id.localeCompare(b.model.id) || a.scenarioId.localeCompare(b.scenarioId)).map((r) => (
@@ -188,6 +192,7 @@ const sampleVerdict = (modelId: string) =>
             </td>
             <td class="num">{fmtCost(r.costUsd)}</td>
             <td class="num">{(r.latencyMs / 1000).toFixed(1)}s</td>
+            <td class="num">{fmtTokens(r.usage?.input)} in · {fmtTokens(r.usage?.output)} out</td>
           </tr>
         ))}
       </tbody>

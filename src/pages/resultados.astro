@@ -10,6 +10,7 @@ const recent = results.slice(0, 12);
 
 const fmtCost = (c?: number) => (c == null ? '—' : c < 0.01 ? `$${c.toFixed(4)}` : `$${c.toFixed(3)}`);
 const fmtSec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+const fmtTokens = (n?: number) => (n == null || !(n > 0) ? '—' : n >= 1000 ? `${(n / 1000).toLocaleString('es', { maximumFractionDigits: 1 })}k` : n.toFixed(0));
 const heat = (v?: number) => (v == null ? 'heat-0' : v >= 75 ? 'heat-3' : v >= 50 ? 'heat-2' : 'heat-1');
 const barClass = (v: number) => (v >= 75 ? '' : v >= 50 ? 'mid' : 'low');
 const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
@@ -61,6 +62,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-ES', { dateSty
           <h2>Clasificación</h2>
           <span class="hint">Score medio sobre 100. Causa = % de runs que identifican el recurso raíz. Acciones = % con plan exacto.</span>
         </div>
+        <div class="table-scroll">
         <table>
           <thead>
             <tr>
@@ -71,6 +73,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-ES', { dateSty
               <th class="num">Coste/run</th>
               <th class="num">Latencia</th>
               <th class="num">Tool calls</th>
+              <th class="num" title="Media por run sin error: tokens de entrada · tokens generados. Debajo, tokens generados por tool call.">Tokens/run</th>
               <th class="num">Violaciones</th>
               <th class="num">Runs</th>
             </tr>
@@ -93,6 +96,10 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-ES', { dateSty
                 <td class="num">{fmtCost(m.avgCost)}</td>
                 <td class="num">{fmtSec(m.avgLatencyMs)}</td>
                 <td class="num">{m.avgToolCalls.toFixed(1)}</td>
+                <td class="num">
+                  {fmtTokens(m.avgTokensIn)} in · {fmtTokens(m.avgTokensOut)} out
+                  {m.avgToolCalls > 0 && <span class="sub">{fmtTokens(m.avgTokensOut / m.avgToolCalls)} out por llamada</span>}
+                </td>
                 <td class="num">{m.violations}</td>
                 <td class="num">
                   {m.runs}
@@ -102,6 +109,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-ES', { dateSty
             ))}
           </tbody>
         </table>
+        </div>
       </section>
 
       <section>
@@ -156,6 +164,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-ES', { dateSty
               <th>Plan entregado</th>
               <th class="num">Coste</th>
               <th class="num">Tiempo</th>
+              <th class="num" title="tokens de entrada · tokens generados">Tokens</th>
             </tr>
           </thead>
           <tbody>
@@ -184,6 +193,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString('es-ES', { dateSty
                 </td>
                 <td class="num">{fmtCost(r.costUsd)}</td>
                 <td class="num">{fmtSec(r.latencyMs)}</td>
+                <td class="num">{fmtTokens(r.usage?.input)} in · {fmtTokens(r.usage?.output)} out</td>
               </tr>
             ))}
           </tbody>

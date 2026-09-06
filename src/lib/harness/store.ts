@@ -68,6 +68,9 @@ export interface ModelAggregate {
   avgCost?: number;
   avgLatencyMs: number;
   avgToolCalls: number;
+  /** tokens medios por run sin error: entrada y salida (generados) */
+  avgTokensIn: number;
+  avgTokensOut: number;
   violations: number;
   /** escenario → media de score determinista y de calidad */
   byScenario: Record<string, { avg: number; n: number; quality?: number }>;
@@ -122,6 +125,8 @@ export function aggregate(results: RunResult[]): ModelAggregate[] {
       avgCost: costs.length ? costs.reduce((a, b) => a + b, 0) / costs.length : undefined,
       avgLatencyMs: ok.length ? ok.reduce((a, r) => a + r.latencyMs, 0) / ok.length : 0,
       avgToolCalls: ok.length ? ok.reduce((a, r) => a + r.toolCalls.length, 0) / ok.length : 0,
+      avgTokensIn: ok.length ? ok.reduce((a, r) => a + (r.usage?.input ?? 0), 0) / ok.length : 0,
+      avgTokensOut: ok.length ? ok.reduce((a, r) => a + (r.usage?.output ?? 0), 0) / ok.length : 0,
       violations: rs.reduce((a, r) => a + r.catalogViolations.length, 0),
       byScenario,
       quality,

@@ -68,11 +68,12 @@ Están en [`docs/informes/`](docs/informes/), con la misma rúbrica y la misma e
 
 - [Doce modelos frente a los escenarios de contención](docs/informes/informe-5e27823b.html) (3 de septiembre):
   los cinco escenarios de contención run a run con doce modelos, sin Fable ni Astra, y sobre las cuatro
-  primeras tandas la vista combinada, la calidad frente a coste y tiempo y el coste de cien incidentes.
+  primeras tandas la vista combinada, la calidad frente a coste y tiempo, el coste de cien incidentes y los tokens
+  que gasta cada modelo.
 - [Los tres de arriba frente a los dos más caros](docs/informes/informe-e459980d.html) (5 de septiembre):
   Kimi K3, GLM 5.3, Opus 5, Fable 5.1 y GPT-6 Astra sobre los nueve escenarios medios y difíciles, y sobre
-  las cinco tandas la vista combinada de doce escenarios, coste, tiempo, cien incidentes y la primera medida
-  de repetibilidad.
+  las cinco tandas la vista combinada de doce escenarios, coste, tiempo, cien incidentes, el precio por token frente
+  a los tokens gastados y la primera medida de repetibilidad.
 
 Las notas y puntuaciones por run de las cinco tandas están en [`results-public/evaluaciones/`](results-public/evaluaciones/),
 un JSON por lote con las seis dimensiones y la justificación de cada run. Los runs y lotes están en

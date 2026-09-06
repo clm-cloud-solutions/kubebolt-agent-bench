@@ -846,7 +846,7 @@ summary:focus-visible {
 .duel-form .field select { min-width: 0; width: 100%; }
 .duel-score {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   padding: 12px 14px;
   border-top: 1px solid var(--line);
@@ -854,4 +854,4 @@ summary:focus-visible {
   color: var(--ink-2);
 }
 .duel-score b { display: block; font-size: 1.3rem; color: var(--ink); font-variant-numeric: tabular-nums; }
-@media (max-width: 760px) { .duel, .duel-form { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .duel, .duel-form { grid-template-columns: 1fr; } .duel-score { grid-template-columns: repeat(2, 1fr); } }
