@@ -38,7 +38,7 @@ const cost = run.costUsd == null ? '—' : `$${run.costUsd.toFixed(4)} (${run.co
           <span>{run.toolCalls.length} tool calls</span>
           <span>{run.steps} pasos</span>
           <span>{(run.latencyMs / 1000).toFixed(1)}s</span>
-          <span>{run.usage.input.toLocaleString('es')} in / {run.usage.output.toLocaleString('es')} out tokens</span>
+          <span>{run.usage.input.toLocaleString('es')} in{run.usage.cached != null && ` (${run.usage.cached.toLocaleString('es')} desde caché)`} / {run.usage.output.toLocaleString('es')} out tokens</span>
           <span>coste {cost}</span>
         </div>
         {run.submission && (

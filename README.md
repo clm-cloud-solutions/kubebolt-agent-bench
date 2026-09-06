@@ -16,8 +16,8 @@ Un `kubectl` falso responde desde esa foto. Cada modelo recibe la misma alerta, 
 mismo catálogo cerrado de acciones, investiga y entrega un plan con una única llamada `submit_remediation`.
 El plan se puntúa de forma determinista, sin LLM, y opcionalmente un juez LLM ciego lo evalúa en seis
 dimensiones. Los modelos de fuera de Anthropic corren por **Vercel AI Gateway** con un bucle genérico
-(AI SDK); Claude puede correr además en su propio harness, el **Claude Agent SDK**, contra el mismo servidor
-MCP. Todo lo que ve el agente está en `src/scenarios/`; todo lo que no ve (narrativa y verdad) también, en
+(AI SDK); Claude puede correr además en su propio harness, el **Claude Agent SDK**, y GPT en el suyo, el **OpenAI Agents
+SDK**, los dos contra el mismo servidor MCP. Todo lo que ve el agente está en `src/scenarios/`; todo lo que no ve (narrativa y verdad) también, en
 el mismo fichero, así que el benchmark es auditable línea a línea.
 
 ## Resultados (septiembre de 2026)
@@ -80,6 +80,16 @@ un JSON por lote con las seis dimensiones y la justificación de cada run. Los r
 [`results-public/`](results-public/) y se pueden navegar con la propia UI:
 `BENCH_RESULTS_DIR=results-public npm run dev` y abrir `/resultados`.
 
+### Después de los informes: dos experimentos
+
+La pregunta que dejaron los informes era si los modelos que corrían sin razonar, la familia GPT sobre todo, estaban
+penalizados por el harness. Dos experimentos la cerraron. El primero fijó el mismo esfuerzo de razonamiento medio a
+los quince modelos del registro sobre el incidente de dos causas, con una sonda previa de lo que razona cada uno por
+defecto: la media no se movió, los planes completos bajaron de cinco a dos y los GPT repitieron sus diagnósticos. El
+segundo corrió Sol y Astra por el OpenAI Agents SDK contra el mismo servidor MCP, con esfuerzo por defecto y medio:
+diez runs, el mismo plan en los diez. La conclusión está en "Lo que aprendimos"; los runs y el informe de esos
+experimentos se irán publicando con la v1.1.
+
 ## Cómo funciona
 
 1. **Escenario congelado.** Un fichero TypeScript por incidente con la alerta que ve el agente, la foto de
@@ -94,13 +104,20 @@ un JSON por lote con las seis dimensiones y la justificación de cada run. Los r
    anota como violación. `escalate_to_human` y `no_action` son acciones válidas: saber parar cuenta.
 4. **Bucle.** Una sola conversación por run con un tope de pasos, que termina en la primera llamada a
    `submit_remediation`. Si el modelo cierra el turno sin entregar y quedan pasos, el harness le devuelve la
-   conversación con un único recordatorio y lo anota en el run (`nudged`, `stopReason`).
+   conversación con un único recordatorio y lo anota en el run (`nudged`, `stopReason`). El nivel de razonamiento se
+   elige por run, en el formulario o en la CLI, y el gateway lo traduce al formato de cada proveedor; sin nivel,
+   cada modelo corre con el suyo por defecto, que es lo que midió la v1.
 5. **Score determinista** (abajo), sin LLM, con una línea de explicación por cada punto.
 6. **Juez LLM ciego** (opcional): seis dimensiones de 1 a 5, con las citas del modelo verificadas antes
    contra la foto.
 7. **Segunda evaluación** independiente, la que sostiene los informes: la misma rúbrica del juez aplicada
    run a run leyendo la traza completa, con reglas de calibración escritas.
 8. **Runs y lotes** como JSON en disco, sin base de datos; la UI, la CLI y el sitio estático leen lo mismo.
+9. **Tres vías, un entorno.** El bucle genérico por Vercel AI Gateway para cualquier modelo; el Claude Agent SDK
+   y el OpenAI Agents SDK como harness nativos de Claude y de GPT, los dos hablando con el mismo servidor MCP
+   que expone el kubectl falso, con la misma traza y la misma puntuación. Los runs de las vías nativas llevan
+   sufijo en el id (`@agent-sdk`, `@agents-sdk`) para agregar aparte, y su coste cuenta la entrada servida desde
+   caché con la tarifa de lista del proveedor.
 
 ## Anatomía de un escenario
 
@@ -193,6 +210,13 @@ Sobre los modelos:
   un SRE de guardia no siempre.
 - **Dos runs del mismo caso se mueven entre 2 y 8 puntos.** Cualquier ranking a un run por celda tiene que
   leerse con esa banda; tres repeticiones no era una cautela retórica.
+- **Pensar más no cambia el criterio.** Con el mismo esfuerzo de razonamiento medio para los quince modelos sobre
+  two-causes, la media no se movió: subió DeepSeek V4 Pro, bajaron los que ya razonaban más que "medio" por
+  defecto, y la familia GPT entregó los mismos diagnósticos palabra por palabra. Lo que separa en ese incidente
+  es una consulta, comparar la revisión anterior con la desplegada, no la cantidad de tokens de pensamiento.
+- **GPT hace lo mismo en su propio arnés.** Diez runs de Sol y Astra por el OpenAI Agents SDK, con esfuerzo por
+  defecto y medio, repiten el plan de los runs por el gateway. Las dos vías probadas para Claude y para GPT es lo
+  que permite afirmar que la diferencia está en el modelo y no en cómo se le llama.
 
 Sobre cómo construir un benchmark así:
 
@@ -209,11 +233,18 @@ Sobre cómo construir un benchmark así:
   pendientes salieron de comparar el score con la evaluación run a run; ninguna era visible desde el código.
 - **Un run por celda solo sirve para ordenar por magnitudes.** La repetibilidad medida en la quinta tanda
   es la razón de que la v1.1 tenga tres repeticiones por celda.
+- **"Por defecto" no significa lo mismo para todos.** Una sonda directa al gateway con el mismo prompt mostró
+  que Claude 5, Kimi, GLM, DeepSeek V4 Pro, Qwen y Gemini razonan sin pedírselo, entre 800 y 20.000 tokens; la
+  familia GPT arranca en el mínimo, y DeepSeek V4 Flash depende del host que sirva la petición. Fijar un nivel
+  iguala las condiciones, pero "medio" queda por debajo del valor por defecto de la mayoría.
+- **La caché del proveedor es parte del coste.** OpenAI y Anthropic sirven el prefijo repetido de cada turno
+  desde caché a una décima parte del precio, y el gateway lo factura así. Un adaptador que tarifa toda la entrada
+  a precio de lista dobla el coste de un run; por eso las vías nativas cuentan los tokens cacheados.
 
 ## Reproducirlo
 
 ```bash
-cp .env.example .env          # pega tu AI_GATEWAY_API_KEY (y ANTHROPIC_API_KEY si vas a usar el Agent SDK)
+cp .env.example .env          # pega tu AI_GATEWAY_API_KEY (y ANTHROPIC_API_KEY u OPENAI_API_KEY para las vías nativas)
 npm install
 npm run selftest              # sin LLM: valida escenarios, herramientas y scoring
 npm run models                # lista los modelos reales de tu cuenta y comprueba los ids de MODELS
@@ -240,6 +271,7 @@ npm run bench -- --models openai/gpt-6-astra@razonamiento-medio --scenarios hpa-
 npm run judge -- --judge <modelo> --batch <id> [--force]                # juzgar a posteriori
 npm run resume -- --batch <id> [--dry]                                  # retomar un lote interrumpido
 npm run agent-sdk-run -- --model claude-sonnet-5 --scenario hpa-maxed --batch ext-01   # Claude por Agent SDK
+npm run openai-agent-run -- --model gpt-5.6-sol --scenario hpa-maxed --batch ext-openai-01 --razonamiento medio   # GPT por OpenAI Agents SDK
 npm run import-run -- --trace traza.json --scenario hpa-maxed --model mi-agente/x --batch ext-02   # traza de otro agente
 npm run mcp-selftest                                                    # sin LLM: prueba el servidor MCP
 ```
@@ -250,7 +282,9 @@ real de cada run lo devuelve el gateway y queda guardado con su origen (`costSou
 para filtrar el gasto en el panel de Vercel. Para iterar barato: corre sin juez, deja fuera los dos modelos
 caros, y usa `--judge` solo en el lote final con un modelo que no compita. Los modelos de Claude pueden
 cobrarse a tu clave de Anthropic, por BYOK en el gateway o por el Claude Agent SDK contra el servidor MCP del
-harness; `docs/agent-sdk-foundry.md` cubre las tres vías.
+harness; `docs/agent-sdk-foundry.md` cubre las tres vías. Los de GPT, a tu clave de OpenAI por el OpenAI Agents
+SDK. En las vías nativas el coste se estima con la tarifa de lista del gateway, contando aparte la entrada
+servida desde caché, y queda marcado como `pricing`.
 
 **Añadir un escenario**: copia cualquier `src/scenarios/*.ts`, cambia la foto y la `truth`, regístralo en
 `src/scenarios/index.ts` y corre `npm run selftest`. El selftest exige que las consultas básicas devuelvan
@@ -305,9 +339,9 @@ src/scenarios/    doce incidentes + index; lib/logs.ts genera logs largos determ
 src/pages/        UI Astro (SSR, adapter node) + /api/batch y /api/run (NDJSON) + /api/results
 src/components/   FrontierChart.astro (scatter SVG), DimensionBars.astro (dimensiones del juez)
 scripts/          bench.ts, judge.ts, resume.ts, models.ts, selftest.ts, mcp-server.ts, mcp-selftest.ts,
-                  agent-sdk-run.ts, import-run.ts, export-site.ts
-docs/             agent-sdk-foundry.md (Claude fuera del gateway: Agent SDK, BYOK, Foundry); informes/ (los dos informes y su índice)
-results-public/   runs, lotes y evaluaciones publicados (201 runs, 9 lotes, 5 evaluaciones)
+                  agent-sdk-run.ts, openai-agent-run.ts, import-run.ts, export-site.ts
+docs/             agent-sdk-foundry.md (Claude fuera del gateway: Agent SDK, BYOK, Foundry); informes/ (los informes y su índice)
+results-public/   runs, lotes y evaluaciones publicados, un JSON por run y por lote
 ```
 
 ## Licencia

@@ -26,11 +26,15 @@ export interface ExternalRunMeta {
   modelId: string;
   label: string;
   vendor?: string;
+  /** nivel de razonamiento con el que corrió el adaptador, si lo fijó */
+  razonamiento?: ModelSpec['razonamiento'];
   batchId: string;
   latencyMs: number;
-  usage?: { input: number; output: number };
+  usage?: { input: number; output: number; cached?: number };
   /** coste conocido (USD) o tarifa por millón de tokens para estimarlo */
   costUsd?: number;
+  /** de dónde sale costUsd cuando lo aporta el adaptador (por defecto se asume 'gateway') */
+  costSource?: RunResult['costSource'];
   pricing?: { input: number; output: number };
   finalText?: string;
   steps?: number;
@@ -43,10 +47,10 @@ export interface ExternalRunMeta {
 
 /** Puntúa una traza y la convierte en RunResult. */
 export function buildExternalRun(scenario: Scenario, trace: Trace, meta: ExternalRunMeta): RunResult {
-  const model: ModelSpec = { id: meta.modelId, label: meta.label, vendor: meta.vendor ?? 'Anthropic', family: 'frontera', verified: true };
-  const usage = { input: meta.usage?.input ?? 0, output: meta.usage?.output ?? 0, total: (meta.usage?.input ?? 0) + (meta.usage?.output ?? 0) };
+  const model: ModelSpec = { id: meta.modelId, label: meta.label, vendor: meta.vendor ?? 'Anthropic', family: 'frontera', verified: true, ...(meta.razonamiento ? { razonamiento: meta.razonamiento } : {}) };
+  const usage = { input: meta.usage?.input ?? 0, output: meta.usage?.output ?? 0, total: (meta.usage?.input ?? 0) + (meta.usage?.output ?? 0), ...(meta.usage?.cached != null ? { cached: meta.usage.cached } : {}) };
   let costUsd = meta.costUsd;
-  let costSource: RunResult['costSource'] = costUsd != null && costUsd > 0 ? 'gateway' : 'unknown';
+  let costSource: RunResult['costSource'] = costUsd != null && costUsd > 0 ? meta.costSource ?? 'gateway' : 'unknown';
   if ((costUsd == null || costUsd === 0) && meta.pricing && usage.total > 0) {
     costUsd = (usage.input * meta.pricing.input + usage.output * meta.pricing.output) / 1e6;
     costSource = 'pricing';

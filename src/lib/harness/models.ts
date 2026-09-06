@@ -98,7 +98,7 @@ export function providerOptionsFor(m: ModelSpec): Record<string, Record<string, 
 
 // ---- precios ---------------------------------------------------------------
 
-type Pricing = { input: number; output: number }; // USD por token
+type Pricing = { input: number; output: number; cached?: number }; // USD por token; cached = entrada servida desde caché
 let cache: Map<string, Pricing> | null = null;
 let cacheAt = 0;
 
@@ -111,7 +111,7 @@ export async function gatewayPricing(): Promise<Map<string, Pricing>> {
     for (const m of res.models as any[]) {
       const p = m.pricing;
       if (p?.input != null && p?.output != null) {
-        map.set(m.id, { input: Number(p.input), output: Number(p.output) });
+        map.set(m.id, { input: Number(p.input), output: Number(p.output), ...(p.cachedInputTokens != null ? { cached: Number(p.cachedInputTokens) } : {}) });
       }
     }
   } catch (err) {

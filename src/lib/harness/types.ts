@@ -177,7 +177,8 @@ export interface RunResult {
   stopReason?: 'submitted' | 'max_steps' | 'no_call_text' | 'no_call_silent' | 'error';
   /** el modelo cerró sin entregar y recibió un único recordatorio final (BENCH_NUDGE) */
   nudged?: boolean;
-  usage: { input: number; output: number; total: number };
+  /** tokens del run; `cached` es la parte de la entrada servida desde caché del proveedor, cuando el adaptador la conoce */
+  usage: { input: number; output: number; total: number; cached?: number };
   costUsd?: number;
   costSource: 'gateway' | 'pricing' | 'unknown';
   latencyMs: number;
