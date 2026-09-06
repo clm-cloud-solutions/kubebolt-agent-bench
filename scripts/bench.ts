@@ -3,10 +3,11 @@
 //   npm run bench -- --models anthropic/claude-sonnet-5,deepseek/deepseek-v4-pro-0813 --scenarios configmap-crashloop --runs 3
 //   npm run bench                      # todos los modelos, todos los escenarios, 1 run
 //   npm run bench -- --judge anthropic/claude-opus-5   # evalúa cada run con un juez ciego
+//   npm run bench -- --models openai/gpt-6-astra@razonamiento-medio --scenarios hpa-maxed   # nivel de razonamiento explícito (sufijo del id)
 //   npm run bench -- --dry             # solo lista lo que haría
 //
 import 'dotenv/config';
-import { MODELS } from '../src/lib/harness/models';
+import { MODELS, findModel } from '../src/lib/harness/models';
 import { SCENARIOS } from '../src/scenarios';
 import { runBatch } from '../src/lib/harness/batch';
 
@@ -21,7 +22,7 @@ const runs = Number(arg('runs') ?? 1);
 const judgeId = arg('judge');
 const concurrency = Number(arg('concurrency') ?? 3);
 
-const models = modelIds ? MODELS.filter((m) => modelIds.includes(m.id)) : MODELS;
+const models = modelIds ? modelIds.map(findModel).filter((m): m is NonNullable<typeof m> => !!m) : MODELS;
 const judge = judgeId ? MODELS.find((m) => m.id === judgeId) : undefined;
 if (judgeId && !judge) {
   console.error(`Juez desconocido: ${judgeId}`);
@@ -43,7 +44,7 @@ console.log(`Plan: ${models.length} modelos × ${scenarios.length} escenarios ×
 if (dry) process.exit(0);
 
 const rows: string[] = [];
-const label = (id: string) => MODELS.find((m) => m.id === id)?.label ?? id;
+const label = (id: string) => findModel(id)?.label ?? id;
 const batch = await runBatch({
   models,
   scenarios,

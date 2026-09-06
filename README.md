@@ -236,6 +236,7 @@ los doce incidentes; `/runs/<id>` es el detalle de un run.
 npm run bench -- --dry                                                  # solo el plan
 npm run bench -- --models moonshotai/kimi-k3,zai/glm-5.3 --scenarios two-causes-ordenes --runs 3
 npm run bench -- --judge openai/gpt-5.6-sol --concurrency 4             # todo × todo × 1, con juez
+npm run bench -- --models openai/gpt-6-astra@razonamiento-medio --scenarios hpa-maxed   # nivel de razonamiento explícito (cualquier modelo; el gateway lo traduce)
 npm run judge -- --judge <modelo> --batch <id> [--force]                # juzgar a posteriori
 npm run resume -- --batch <id> [--dry]                                  # retomar un lote interrumpido
 npm run agent-sdk-run -- --model claude-sonnet-5 --scenario hpa-maxed --batch ext-01   # Claude por Agent SDK

@@ -21,4 +21,4 @@ for (const m of list) {
 
 console.log('\nComprobación de MODELS (src/lib/harness/models.ts):');
 const ids = new Set(all.map((m) => m.id));
-for (const m of MODELS) console.log(`  ${ids.has(m.id) ? '✓' : '✗ NO EXISTE'}  ${m.id}`);
+for (const m of MODELS) console.log(`  ${ids.has(m.gatewayId ?? m.id) ? '✓' : '✗ NO EXISTE'}  ${m.id}${m.gatewayId ? ` (llama a ${m.gatewayId})` : ''}`);

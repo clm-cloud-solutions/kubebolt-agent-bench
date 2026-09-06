@@ -1,6 +1,6 @@
 ---
 import Base from '@/layouts/Base.astro';
-import { MODELS } from '@/lib/harness/models';
+import { MODELS, NIVELES_RAZONAMIENTO, razonamientoConfigurable } from '@/lib/harness/models';
 import { SCENARIOS } from '@/scenarios';
 import { READONLY } from '@/lib/harness/readonly';
 
@@ -33,7 +33,15 @@ const modelsJson = MODELS.map((m) => ({ id: m.id, label: m.label, vendor: m.vend
             {m.label}
             <span class="sub mono">{m.id}</span>
           </span>
-          <span class="tag">{m.family}</span>
+          <span class="tag">
+            {razonamientoConfigurable(m) && (
+              <select class="nivel" title="Esfuerzo de razonamiento de este run; por defecto, el del proveedor">
+                <option value="">razonamiento por defecto</option>
+                {NIVELES_RAZONAMIENTO.map((n) => <option value={n}>razonamiento {n}</option>)}
+              </select>
+            )}
+            {m.family}
+          </span>
         </label>
       ))}
     </div>
@@ -105,6 +113,7 @@ const modelsJson = MODELS.map((m) => ({ id: m.id, label: m.label, vendor: m.vend
       const judge = $('#judge').value;
       $('#summary').innerHTML = `<b>${m}</b> modelos × <b>${s}</b> escenarios × <b>${r}</b> = <b>${m * s * r}</b> runs${judge ? ` + ${m * s * r} evaluaciones del juez` : ''}`;
       $('#judge-warn').hidden = !(judge && selected('model').includes(judge));
+      $$('.pick select.nivel').forEach((sel) => { sel.disabled = !sel.closest('.pick').querySelector('input[name="model"]').checked; });
       $('#launch').disabled = !m || !s;
     }
     document.addEventListener('change', refresh);
@@ -135,7 +144,9 @@ const modelsJson = MODELS.map((m) => ({ id: m.id, label: m.label, vendor: m.vend
     }
 
     $('#launch').addEventListener('click', async () => {
-      const models = selected('model');
+      // El nivel de razonamiento elegido viaja como sufijo del id (lo resuelve findModel en el servidor).
+      const SLUG = { ninguno: 'ninguno', 'mínimo': 'minimo', bajo: 'bajo', medio: 'medio', alto: 'alto', 'máximo': 'maximo' };
+      const models = $$('input[name="model"]:checked').map((cb) => { const sel = cb.closest('.pick')?.querySelector('select.nivel'); return sel && sel.value ? `${cb.value}@razonamiento-${SLUG[sel.value]}` : cb.value; });
       const scenarios = selected('scenario');
       const runsPer = Number($('#runsPer').value) || 1;
       const judge = $('#judge').value || undefined;

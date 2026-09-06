@@ -707,7 +707,19 @@ summary:focus-visible {
 .pick input { margin: 0; width: 16px; height: 16px; accent-color: var(--green); }
 .pick .name { font-weight: 500; }
 .pick .sub { display: block; color: var(--ink-3); font-size: 0.78rem; font-weight: 400; }
-.pick .tag { color: var(--ink-3); font-size: 0.78rem; }
+.pick .tag { color: var(--ink-3); font-size: 0.78rem; display: inline-flex; align-items: center; gap: 12px; }
+/* nivel de razonamiento del run: compacto, atado a la casilla del modelo */
+.pick .nivel {
+  min-width: 0;
+  width: auto;
+  padding: 4px 26px 4px 8px;
+  font-size: 0.78rem;
+  color: var(--ink-2);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.pick .nivel:disabled { opacity: 0.45; cursor: not-allowed; }
 .launch {
   margin-top: 24px;
   display: flex;

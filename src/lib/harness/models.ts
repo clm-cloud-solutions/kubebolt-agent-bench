@@ -38,8 +38,62 @@ export const MODELS: ModelSpec[] = [
   { id: 'moonshotai/kimi-k3', label: 'Kimi K3', vendor: 'Moonshot', family: 'china', verified: true },
 ];
 
+/** id con el que se llama al gateway (las variantes llevan sufijo en `id`). */
+export const gatewayId = (m: ModelSpec): string => m.gatewayId ?? m.id;
+
+// ---- nivel de razonamiento por run ------------------------------------------
+// No se registran variantes en MODELS: el nivel se elige al lanzar (formulario o CLI) y viaja en el id
+// del run como sufijo, p.ej. "openai/gpt-6-astra@razonamiento-medio", para que sus runs agreguen aparte.
+// El runner lo manda como opción `reasoning` del AI SDK; el gateway lo traduce al formato nativo del
+// proveedor que sirva la petición (OpenAI reasoning effort, Claude pensamiento adaptativo, Gemini
+// thinkingLevel, presupuesto de thinking en los demás). Sin nivel, `provider-default`: lo que hizo la v1.
+
+export type Razonamiento = NonNullable<ModelSpec['razonamiento']>;
+export const NIVELES_RAZONAMIENTO: Razonamiento[] = ['ninguno', 'mínimo', 'bajo', 'medio', 'alto', 'máximo'];
+const SLUG: Record<Razonamiento, string> = { ninguno: 'ninguno', mínimo: 'minimo', bajo: 'bajo', medio: 'medio', alto: 'alto', máximo: 'maximo' };
+const DESLUG: Record<string, Razonamiento> = Object.fromEntries(Object.entries(SLUG).map(([k, v]) => [v, k as Razonamiento]));
+const NIVEL_SDK = { ninguno: 'none', mínimo: 'minimal', bajo: 'low', medio: 'medium', alto: 'high', máximo: 'xhigh' } as const;
+const SUFIJO = /^(.+)@razonamiento-([a-z]+)$/;
+
+/** Copia del modelo con un nivel de razonamiento explícito e identidad propia. Sin nivel, el modelo tal cual. */
+export function withRazonamiento(spec: ModelSpec, nivel?: Razonamiento): ModelSpec {
+  if (!nivel) return spec;
+  return { ...spec, id: `${spec.id}@razonamiento-${SLUG[nivel]}`, gatewayId: spec.gatewayId ?? spec.id, razonamiento: nivel, label: `${spec.label} · razonamiento ${nivel}` };
+}
+
+/** Valor de la opción `reasoning` del AI SDK para este modelo; undefined = valor por defecto del proveedor. */
+export const nivelSdk = (m: ModelSpec): (typeof NIVEL_SDK)[Razonamiento] | undefined => (m.razonamiento ? NIVEL_SDK[m.razonamiento] : undefined);
+
+/** true si el nivel se puede fijar para este modelo: todos los del gateway, que hace la traducción. */
+export const razonamientoConfigurable = (_spec: ModelSpec): boolean => true;
+
+/** Resuelve un id del registro o un id con sufijo de razonamiento. */
 export function findModel(id: string): ModelSpec | undefined {
-  return MODELS.find((m) => m.id === id);
+  const direct = MODELS.find((m) => m.id === id);
+  if (direct) return direct;
+  const m = id.match(SUFIJO);
+  if (!m) return undefined;
+  const base = MODELS.find((x) => x.id === m[1]);
+  const nivel = DESLUG[m[2]];
+  // sin traducción para ese proveedor, el sufijo sería una etiqueta vacía: se rechaza
+  return base && nivel && razonamientoConfigurable(base) ? withRazonamiento(base, nivel) : undefined;
+}
+
+const ESFUERZO_OPENAI = { mínimo: 'minimal', bajo: 'low', medio: 'medium', alto: 'high' } as const;
+// Claude 5 por el gateway: pensamiento adaptativo con esfuerzo; 'mínimo' lo apaga del todo. Haiku 4.5 no admite el modo adaptativo.
+const ESFUERZO_ANTHROPIC = { bajo: 'low', medio: 'medium', alto: 'high' } as const;
+const CLAUDE_CON_ESFUERZO = /^anthropic\/claude-(fable|opus|sonnet)-5/;
+
+/** Opciones específicas del proveedor que el gateway reenvía: esfuerzo de razonamiento de OpenAI y pensamiento adaptativo de Claude 5. */
+export function providerOptionsFor(m: ModelSpec): Record<string, Record<string, unknown>> {
+  if (!m.razonamiento) return {};
+  const gid = gatewayId(m);
+  if (gid.startsWith('openai/')) return { openai: { reasoningEffort: ESFUERZO_OPENAI[m.razonamiento] } };
+  if (CLAUDE_CON_ESFUERZO.test(gid)) {
+    if (m.razonamiento === 'mínimo') return { anthropic: { thinking: { type: 'disabled' } } };
+    return { anthropic: { thinking: { type: 'adaptive' }, effort: ESFUERZO_ANTHROPIC[m.razonamiento] } };
+  }
+  return {};
 }
 
 // ---- precios ---------------------------------------------------------------
@@ -69,7 +123,7 @@ export async function gatewayPricing(): Promise<Map<string, Pricing>> {
 }
 
 export async function estimateCost(spec: ModelSpec, input: number, output: number): Promise<number | undefined> {
-  const p = (await gatewayPricing()).get(spec.id);
+  const p = (await gatewayPricing()).get(gatewayId(spec));
   if (p) return input * p.input + output * p.output;
   if (spec.fallbackPricing) return (input * spec.fallbackPricing.input + output * spec.fallbackPricing.output) / 1e6;
   return undefined;

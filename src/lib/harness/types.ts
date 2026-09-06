@@ -88,7 +88,11 @@ export interface Scenario {
 }
 
 export interface ModelSpec {
-  id: string; // id en Vercel AI Gateway, p.ej. "anthropic/claude-sonnet-5"
+  id: string; // identidad del modelo en el bench; es el id de Vercel AI Gateway salvo en las variantes, p.ej. "openai/gpt-6-astra@razonamiento-alto"
+  /** id con el que se llama al gateway cuando la identidad lleva sufijo de variante; por defecto, `id` */
+  gatewayId?: string;
+  /** esfuerzo de razonamiento explícito del run; sin él, cada proveedor aplica su valor por defecto. Va como opción `reasoning` del AI SDK y el gateway lo traduce al formato nativo del proveedor que sirva la petición. */
+  razonamiento?: 'ninguno' | 'mínimo' | 'bajo' | 'medio' | 'alto' | 'máximo';
   label: string;
   vendor: string;
   family: 'frontera' | 'china';

@@ -4,7 +4,7 @@ import type { ModelSpec, RunEvent, RunResult, Scenario } from './types';
 import { buildTools, type RunState } from './fakeKubectl';
 import { catalogAsText } from './catalog';
 import { score } from './scoring';
-import { estimateCost } from './models';
+import { estimateCost, gatewayId, nivelSdk } from './models';
 
 export const SYSTEM = `Eres un agente SRE autónomo que investiga incidentes en clusters Kubernetes.
 
@@ -102,9 +102,11 @@ export async function runScenario({ model, scenario, maxSteps, onEvent }: RunOpt
 
   try {
     const common = {
-      model: gateway(model.id),
+      model: gateway(gatewayId(model)),
       system: SYSTEM,
       tools,
+      // Esfuerzo de razonamiento explícito del run; sin él, el del proveedor. El gateway lo traduce al formato nativo.
+      ...(nivelSdk(model) ? { reasoning: nivelSdk(model) } : {}),
       providerOptions: {
         gateway: {
           ...(model.pin ? { only: model.pin } : {}),
